@@ -1,0 +1,29 @@
+{
+  "name": "pigment",
+  "version": "0.1.0",
+  "description": "A day is a picture. It colours in as you burn tokens.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test 'test/*.test.ts'",
+    "typecheck": "tsc --noEmit",
+    "replay": "node src/tools/replay.ts",
+    "sweep": "node src/tools/sweep.ts",
+    "build": "node scripts/build.mjs",
+    "start": "npm run build -- --dev && electron .",
+    "icons": "node src/tools/preview.ts --ascii",
+    "import": "node src/tools/import-png.ts"
+  },
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "electron": "^43.4.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
+  },
+  "allowScripts": {
+    "electron@43.4.0": true,
+    "esbuild@0.28.2": true
+  },
+  "main": "dist/main/index.cjs"
+}
