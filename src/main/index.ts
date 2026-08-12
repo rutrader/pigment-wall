@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, Tray } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, Notification, screen, Tray } from 'electron'
 import { join } from 'node:path'
 import { DEFAULTS, loadConfig } from '../core/config.ts'
 import { Pigment, type Snapshot } from '../core/app.ts'
@@ -79,11 +79,35 @@ async function tick(): Promise<void> {
     latest = await pigment.tick(now)
     paintTray(latest)
     popover?.webContents.send('pigment:snapshot', payload(latest))
+    speak(latest)
   } catch (error) {
     // A bad tick must never take the app down — the next one is five seconds
     // away and the wall on disk is untouched.
     console.error('pigment: tick failed', error)
   }
+}
+
+/**
+ * Delivers at most one interruption a day. SPEC §7.
+ *
+ * The cap is the whole design: uncapped, this would have fired on most days in
+ * early August and been muted inside a fortnight. Capped, it lands one or two
+ * times a week on the measured history.
+ *
+ * Posted through the ordinary notification API with no urgency flags, so Focus
+ * and Do Not Disturb suppress it exactly as the user configured them — the app
+ * does not get to decide it is more important than that.
+ */
+function speak(snapshot: Snapshot): void {
+  if (!snapshot.interrupt || !pigment) return
+  if (!Notification.isSupported()) return
+
+  const { kind, text, slot } = snapshot.interrupt
+  // Recorded BEFORE showing: if the notification throws, the day is still spent.
+  // A silent miss beats a loop that re-fires the same line every five seconds.
+  pigment.markDelivered(snapshot.today.key, kind, slot)
+
+  new Notification({ title: 'Pigment', body: text, silent: false }).show()
 }
 
 function paintTray(snapshot: Snapshot): void {
@@ -126,6 +150,7 @@ function payload(snapshot: Snapshot) {
     tier: snapshot.tier.index,
     overfillCap: CONFIG.overfillCap,
     boundaryHour: CONFIG.boundaryHour,
+    roast: snapshot.roast,
     entries: collapse(snapshot.wall.days).map((entry) =>
       entry.kind === 'away'
         ? { kind: 'away' as const, from: entry.from, to: entry.to, days: entry.days }
@@ -209,6 +234,14 @@ function showMenu(): void {
           ? `${dayLabel(today.key, CONFIG.boundaryHour)} — ${Math.round(today.fill * 100)}% of ${Math.round(today.target).toLocaleString()}`
           : 'Reading your history…',
         enabled: false,
+      },
+      {
+        // First item on purpose: the escape hatch has to be obvious the moment
+        // the roasts start to grate (SPEC §7).
+        label: 'Roast me',
+        type: 'checkbox',
+        checked: pigment?.peek().prefs.notify ?? true,
+        click: (item) => pigment?.setNotify(item.checked),
       },
       { type: 'separator' },
       { label: 'Open Pigment', click: togglePopover },

@@ -145,6 +145,7 @@ export function seal(store: Store, days: Day[], config: Config, now: number): St
 
   const windowStartKey = dayKey(now - config.windowDays * 86_400_000, config.boundaryHour)
   return {
+    ...store,
     days: [...byKey.values()]
       .filter((day) => day.key >= windowStartKey)
       .sort((a, b) => a.key.localeCompare(b.key)),

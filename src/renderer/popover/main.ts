@@ -29,6 +29,7 @@ type Payload = {
   tier: number
   overfillCap: number
   boundaryHour: number
+  roast: { kind: string; text: string } | null
   entries: Array<DayView | AwayView>
 }
 
@@ -46,6 +47,7 @@ const todayMeta = document.querySelector<HTMLDivElement>('#today-meta')!
 const todayWhen = document.querySelector<HTMLDivElement>('#today-when')!
 const todayFill = document.querySelector<HTMLDivElement>('#today-fill')!
 const wall = document.querySelector<HTMLDivElement>('#wall')!
+const roastLine = document.querySelector<HTMLDivElement>('#roast')!
 
 window.pigment.onSnapshot(paint)
 void window.pigment.request().then((snapshot) => {
@@ -64,6 +66,12 @@ function paint(payload: Payload): void {
   todayMeta.textContent = today.idle
     ? 'nothing yet today'
     : `${today.output.toLocaleString()} of ${today.target.toLocaleString()} tokens · tier ${today.tier} · ${today.cost}`
+
+  // Every kind shows here, including the two that may not interrupt: this is
+  // the surface you came looking at, so nothing is being pushed on you.
+  roastLine.textContent = payload.roast?.text ?? ''
+  roastLine.dataset['kind'] = payload.roast?.kind ?? ''
+  roastLine.hidden = !payload.roast
 
   wall.replaceChildren(
     // Newest first: the thing you came to look at should not be a scroll away.

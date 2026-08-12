@@ -10,6 +10,7 @@ import {
   writeSync,
 } from 'node:fs'
 import { dirname } from 'node:path'
+import type { Fired } from './quips.ts'
 import type { Day } from './types.ts'
 
 /**
@@ -30,16 +31,38 @@ const VERSION = 1
 export type StoreFile = {
   version: number
   days: Day[]
+  roasts?: Fired[]
+  prefs?: Prefs
 }
+
+/** User-facing switches. Small enough to live beside the wall. */
+export type Prefs = {
+  /** SPEC §7: default on, because a joy layer you must discover does not exist. */
+  notify: boolean
+}
+
+export const DEFAULT_PREFS: Prefs = { notify: true }
 
 export type Store = {
   /** Sealed days, ascending by key. */
   days: Day[]
+  /**
+   * Which quip fired on which day.
+   *
+   * Persisted because the thirty-day repeat filter and the one-a-day cap are
+   * both memory, and an app that forgets them on restart tells you the same
+   * joke twice in an afternoon.
+   */
+  roasts: Fired[]
+  prefs: Prefs
 }
 
 export function emptyStore(): Store {
-  return { days: [] }
+  return { days: [], roasts: [], prefs: { ...DEFAULT_PREFS } }
 }
+
+/** Roast history is pruned to twice the cooldown: enough to enforce it, no more. */
+const ROAST_MEMORY_DAYS = 60
 
 /**
  * Reads the store, tolerating everything except a file from the future.
@@ -68,12 +91,37 @@ export function readStore(file: string): Store {
   if (!Array.isArray(parsed.days)) return emptyStore()
 
   const days = parsed.days.filter(isDay).sort((a, b) => a.key.localeCompare(b.key))
-  return { days }
+  const roasts = Array.isArray(parsed.roasts) ? parsed.roasts.filter(isFired) : []
+  const prefs = { ...DEFAULT_PREFS, ...(parsed.prefs ?? {}) }
+  return { days, roasts, prefs }
 }
 
 export function writeStore(file: string, store: Store): void {
-  const payload: StoreFile = { version: VERSION, days: store.days }
+  const cutoff = latestDay(store) - ROAST_MEMORY_DAYS
+  const payload: StoreFile = {
+    version: VERSION,
+    days: store.days,
+    roasts: store.roasts.filter((fired) => dayIndexOf(fired.key) >= cutoff),
+    prefs: store.prefs,
+  }
   writeJsonAtomic(file, payload)
+}
+
+function latestDay(store: Store): number {
+  let latest = 0
+  for (const fired of store.roasts) latest = Math.max(latest, dayIndexOf(fired.key))
+  return latest
+}
+
+function dayIndexOf(key: string): number {
+  const [year, month, dayOfMonth] = key.split('-').map(Number)
+  return Math.floor(Date.UTC(year ?? 1970, (month ?? 1) - 1, dayOfMonth ?? 1) / 86_400_000)
+}
+
+function isFired(value: unknown): value is Fired {
+  if (typeof value !== 'object' || value === null) return false
+  const fired = value as Record<string, unknown>
+  return typeof fired['key'] === 'string' && typeof fired['kind'] === 'string' && typeof fired['slot'] === 'number'
 }
 
 /**

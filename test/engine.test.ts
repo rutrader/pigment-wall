@@ -115,7 +115,7 @@ test('sealed days are taken verbatim and the controller resumes from their targe
 
   const wall = buildWall({
     totals: totalsFor({ '2026-08-01': 1, '2026-08-09': 150_000 }),
-    store: { days: [sealed] },
+    store: { ...emptyStore(), days: [sealed] },
     config: CONFIG,
     now: NOW,
     pools: { 1: 4, 2: 4, 3: 4 },
@@ -144,7 +144,7 @@ test('days inside the 48-hour window are recomputed, not read from the store', (
 
   const wall = buildWall({
     totals: totalsFor({ '2026-08-11': 300_000 }),
-    store: { days: [stale] },
+    store: { ...emptyStore(), days: [stale] },
     config: CONFIG,
     now: NOW,
     pools: { 1: 4, 2: 4, 3: 4 },
@@ -171,7 +171,7 @@ test('sealing is idempotent and drops days that fell out of the window', () => {
   assert.deepEqual(once.days, twice.days)
 
   const ancient: Day = { ...once.days[0]!, key: '2020-01-01' }
-  const pruned = seal({ days: [ancient, ...once.days] }, [], CONFIG, NOW)
+  const pruned = seal({ ...emptyStore(), days: [ancient, ...once.days] }, [], CONFIG, NOW)
   assert.ok(!pruned.days.some((day) => day.key === '2020-01-01'))
 })
 

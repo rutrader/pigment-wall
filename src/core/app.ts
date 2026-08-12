@@ -5,7 +5,9 @@ import { buildWall, seal, toSeal, type Wall } from './engine.ts'
 import { emptyStore, readStore, writeStore, type Store } from './store.ts'
 import { Tail } from './tail.ts'
 import { poolSizes } from '../art/image.ts'
-import { BASELINE_DAYS, baselineOf, tierFor, type Tier } from './tiers.ts'
+import { BASELINE_DAYS, baselineOf, dayNumber, tierFor, type Tier } from './tiers.ts'
+import { detect, headline, interrupting, type Event } from './events.ts'
+import { pickQuip, type Fired } from './quips.ts'
 import type { Day, DayTotals } from './types.ts'
 
 /**
@@ -26,6 +28,16 @@ export type Snapshot = {
   tier: Tier
   /** Records ingested by the sweep that produced this snapshot. */
   ingested: number
+  /**
+   * Today's line, if today did anything worth a remark. Always safe to show —
+   * the popover is where you went looking (SPEC §7).
+   */
+  roast: { kind: Event['kind']; text: string } | null
+  /**
+   * The same line, but only when the event may interrupt AND nothing has
+   * interrupted yet today. Null means the caller must stay quiet.
+   */
+  interrupt: { kind: Event['kind']; text: string; slot: number } | null
 }
 
 export class Pigment {
@@ -101,6 +113,20 @@ export class Pigment {
   }
 
   /**
+   * Records that a line was delivered, so it will not be repeated inside the
+   * cooldown and nothing else interrupts today.
+   */
+  markDelivered(key: string, kind: Event['kind'], slot: number): void {
+    this.store = { ...this.store, roasts: [...this.store.roasts, { key, kind, slot }] }
+    writeStore(this.storeFile, this.store)
+  }
+
+  setNotify(notify: boolean): void {
+    this.store = { ...this.store, prefs: { ...this.store.prefs, notify } }
+    writeStore(this.storeFile, this.store)
+  }
+
+  /**
    * Rebuilds the wall from current totals, seals what has aged out, and
    * persists. One path, so a sealed day can only ever be the day that was just
    * derived — there is no second code path that could seal a different number.
@@ -128,7 +154,39 @@ export class Pigment {
       wall.days.slice(-BASELINE_DAYS - 1, -1).map((day) => day.target),
     )
 
-    return { wall, today, tier: tierFor(today.target, baseline), ingested }
+    // Quip history is DERIVED by replaying the wall, not read from what was
+    // delivered. Only interruptions are ever recorded, so a stored history
+    // would leave every popover-only line — dead days especially — outside the
+    // cooldown: the measured month repeated "a blank day" twice in eight days.
+    // The wall is already the durable record; the words follow from it.
+    const found = detect(wall.days, this.config)
+    const history: Fired[] = []
+    let roast: Snapshot['roast'] = null
+    let todaysSlot = 0
+
+    for (const day of wall.days) {
+      const events = found.get(day.key)
+      if (!events) continue
+      const lead = headline(events)
+      if (!lead) continue
+
+      const picked = pickQuip(lead, history, dayNumber(day.key))
+      history.push({ key: day.key, kind: lead.kind, slot: picked.slot })
+
+      if (day.key === today.key) {
+        roast = { kind: lead.kind, text: picked.text }
+        todaysSlot = picked.slot
+      }
+    }
+
+    // One interruption a day, and only if nothing has interrupted today already.
+    // The cap is what keeps this rare enough to still land (SPEC §7).
+    const events = found.get(today.key) ?? []
+    const spokenToday = this.store.roasts.some((fired) => fired.key === today.key)
+    const loud = this.store.prefs.notify && !spokenToday ? interrupting(events) : null
+    const interrupt = loud && roast ? { kind: loud.kind, text: roast.text, slot: todaysSlot } : null
+
+    return { wall, today, tier: tierFor(today.target, baseline), ingested, roast, interrupt }
   }
 }
 
