@@ -121,6 +121,11 @@ export class Pigment {
     writeStore(this.storeFile, this.store)
   }
 
+  setOnboarded(): void {
+    this.store = { ...this.store, prefs: { ...this.store.prefs, onboarded: true } }
+    writeStore(this.storeFile, this.store)
+  }
+
   setNotify(notify: boolean): void {
     this.store = { ...this.store, prefs: { ...this.store.prefs, notify } }
     writeStore(this.storeFile, this.store)

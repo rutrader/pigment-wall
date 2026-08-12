@@ -26,7 +26,7 @@ npm start         # build and run the app
 ```
 
 ```sh
-npm test          # 95 tests, no test dependencies
+npm test          # 97 tests, no test dependencies
 npm run typecheck
 npm run replay    # your real history through the controller, as ASCII
 npm run sweep     # grid over q and k, to check the constants against your data
@@ -161,6 +161,27 @@ Replayed over the last 34 real days that comes to **1.4 notifications a week**.
 bare `electron .`. Run `npm run package` and launch `out/Pigment.app` once to
 approve the permission prompt. Every roast appears in the popover either way.
 
+## Settings
+
+A commented `config.jsonc` is written to
+`~/Library/Application Support/pigment/` on first run — the tray menu's
+**Settings…** opens it. Every knob carries the reasoning for its default, since
+`"q": 0.4` means nothing without the sentence explaining that q *is* the
+completion rate. Edits are picked up within a few seconds; no restart.
+
+The file supports `//` comments, which JSON does not — they are stripped on
+read, string-aware so a path containing `//` survives. Hence `.jsonc` rather
+than `.json`: editors understand that name and validate accordingly, where a
+`.json` file full of comments is flagged as broken on every commented line. A
+`config.json` from an earlier build is still read if present. Every value is clamped
+on load, so a hand-edited `"q": 5` falls back rather than producing a wall that
+can never complete.
+
+First launch also shows a one-panel account of what the app reads
+(`~/.claude/projects`, timestamps and token counts), what it never reads
+(conversation content, paths, project names) and that it sends nothing anywhere.
+Reachable later from **About Pigment…** in the tray menu.
+
 ## Distribution
 
 `npm run package` builds `out/Pigment.app` with no packaging dependency — it
@@ -181,8 +202,9 @@ xcrun notarytool store-credentials "pigment" \
 
 ## What is left
 
-M4: onboarding, a config surface, the full image set, and the colour silhouette
-tray icon.
+M4: the full image set (13 of ~60), the colour silhouette tray icon, and
+Developer ID signing when the app goes to someone else. Onboarding and the
+config surface are done.
 
 A native Swift/AppKit rewrite is parked, not rejected — see SPEC §13 for the
 measurements and why the cost is inverted from what you would guess.

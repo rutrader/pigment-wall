@@ -80,10 +80,116 @@ export function expandHome(p: string): string {
 
 export function loadConfig(file: string): Config {
   try {
-    return normalise(JSON.parse(readFileSync(file, 'utf8')) as Partial<Config>)
+    return normalise(JSON.parse(stripComments(readFileSync(file, 'utf8'))) as Partial<Config>)
   } catch {
     return DEFAULTS
   }
+}
+
+/**
+ * Removes `//` line comments so the config file can explain itself.
+ *
+ * JSON has no comments, and a settings file whose every key is a bare number is
+ * useless to the person editing it — `"q": 0.4` means nothing without the
+ * sentence that says q IS the completion rate. Stripping comments on read costs
+ * ten lines and makes the file teachable.
+ *
+ * String-aware, or a `//` inside a path would truncate the file.
+ */
+export function stripComments(text: string): string {
+  let out = ''
+  let inString = false
+  let escaped = false
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i]!
+
+    if (inString) {
+      out += char
+      if (escaped) escaped = false
+      else if (char === '\\') escaped = true
+      else if (char === '"') inString = false
+      continue
+    }
+
+    if (char === '"') {
+      inString = true
+      out += char
+      continue
+    }
+
+    if (char === '/' && text[i + 1] === '/') {
+      while (i < text.length && text[i] !== '\n') i++
+      out += '\n'
+      continue
+    }
+
+    out += char
+  }
+
+  return out
+}
+
+/**
+ * The commented file written on first run.
+ *
+ * Every knob carries the measurement that produced its default, because the
+ * defaults are only defensible with the reason attached — and because a user
+ * who changes `q` without knowing it sets the completion rate will change it
+ * back in confusion.
+ */
+export function defaultConfigFile(): string {
+  return `{
+  // Pigment reads this at launch and whenever the file changes.
+  // Delete any line to fall back to its default.
+  //
+  // The .jsonc extension is deliberate: this is JSON with comments, which
+  // editors understand under that name and would flag as errors under .json.
+
+  // Where the session logs live, and how deep to walk.
+  "root": ${JSON.stringify(DEFAULTS.root)},
+  "dir": "projects",
+
+  // The hour a Pigment day begins, 0-23.
+  // 4, not midnight: a night session should be one picture, not two.
+  "boundaryHour": ${DEFAULTS.boundaryHour},
+
+  // Below this many output tokens a day counts as idle: grey square, and the
+  // difficulty target freezes rather than dropping.
+  "idleFloor": ${DEFAULTS.idleFloor},
+
+  // The difficulty loop. Two numbers, and they do different jobs.
+  //
+  // q IS the completion rate. The target settles at your qth percentile day,
+  // so you finish (1 - q) of them. 0.4 means about 60% of working days
+  // complete the picture. Lower q = easier.
+  "q": ${DEFAULTS.q},
+  //
+  // k is how fast the bar reacts. At 0.15 a huge day raises tomorrow ~6% and a
+  // miss lowers it ~9%: a slow tide. At 0.3 the app visibly flinches whenever
+  // you have a bad afternoon.
+  //
+  // Careful going below ~0.1: the picture's complexity tier is decided by how
+  // far the target has moved from its own recent average, so a target that
+  // barely moves means the tier never changes and that whole signal dies.
+  "k": ${DEFAULTS.k},
+
+  // Hard limits on the target, whatever the loop wants.
+  "minTarget": ${DEFAULTS.minTarget},
+  "maxTarget": ${DEFAULTS.maxTarget},
+
+  // How far back the wall goes.
+  "windowDays": ${DEFAULTS.windowDays},
+
+  // Days newer than this are recomputed from the logs every launch; older ones
+  // are frozen. Covers a Mac asleep at the boundary and sessions resumed the
+  // next morning with yesterday's timestamps.
+  "recomputeHours": ${DEFAULTS.recomputeHours},
+
+  // How far past 100% the picture keeps overexposing before it stops.
+  "overfillCap": ${DEFAULTS.overfillCap}
+}
+`
 }
 
 /** Every field clamped to a sane range: a typo must not produce a broken loop. */

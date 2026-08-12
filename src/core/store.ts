@@ -39,9 +39,11 @@ export type StoreFile = {
 export type Prefs = {
   /** SPEC §7: default on, because a joy layer you must discover does not exist. */
   notify: boolean
+  /** Whether first-run has been acknowledged. */
+  onboarded: boolean
 }
 
-export const DEFAULT_PREFS: Prefs = { notify: true }
+export const DEFAULT_PREFS: Prefs = { notify: true, onboarded: false }
 
 export type Store = {
   /** Sealed days, ascending by key. */

@@ -391,3 +391,51 @@ test('after midnight the label says the day is still the previous one', async ()
   const afterBoundary = new Date(2026, 7, 12, 4, 30).getTime()
   assert.equal(dayLabel('2026-08-12', 4, afterBoundary).includes('until'), false)
 })
+
+// --- M4: the config surface -----------------------------------------------------
+
+test('the written config file parses back to the defaults', async () => {
+  const { defaultConfigFile, stripComments, normalise, DEFAULTS } = await import('../src/core/config.ts')
+
+  // The file is the documentation, so it must stay in sync with the defaults it
+  // claims to show — a file that says q is 0.4 while the code uses 0.5 is worse
+  // than no file.
+  const parsed = JSON.parse(stripComments(defaultConfigFile())) as Record<string, unknown>
+  const config = normalise(parsed)
+
+  for (const key of ['boundaryHour', 'idleFloor', 'q', 'k', 'windowDays', 'recomputeHours', 'overfillCap'] as const) {
+    assert.equal(config[key], DEFAULTS[key], `${key} in the written file disagrees with the default`)
+  }
+  assert.equal(config.root, DEFAULTS.root)
+})
+
+test('comment stripping does not damage strings containing slashes', async () => {
+  const { stripComments } = await import('../src/core/config.ts')
+
+  // A Windows-style or URL-ish path inside a string must survive: truncating at
+  // the first `//` would silently rewrite the user's log directory.
+  const text = '{ "root": "/Users/x/http://not-a-comment", "q": 0.4 } // trailing'
+  const parsed = JSON.parse(stripComments(text)) as { root: string; q: number }
+  assert.equal(parsed.root, '/Users/x/http://not-a-comment')
+  assert.equal(parsed.q, 0.4)
+
+  assert.equal(JSON.parse(stripComments('{"a":1 // one\n, "b":2}')).b, 2)
+  assert.equal(stripComments('{"escaped":"a\\"//b"}').includes('//b'), true)
+})
+
+test('a hand-edited config still cannot produce a broken loop', async () => {
+  const { stripComments, normalise } = await import('../src/core/config.ts')
+
+  // Someone will set q to 5 or k to 0. The clamps are what stop that becoming a
+  // wall that never completes or a target that never moves.
+  const edited = `{
+    // my settings
+    "q": 5,
+    "k": 0,
+    "boundaryHour": 30
+  }`
+  const config = normalise(JSON.parse(stripComments(edited)))
+  assert.ok(config.q > 0 && config.q < 1)
+  assert.ok(config.k > 0)
+  assert.ok(config.boundaryHour >= 0 && config.boundaryHour <= 23)
+})

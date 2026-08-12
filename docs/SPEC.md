@@ -543,6 +543,20 @@ iterate on weekly and it needs real days to react to.
 surface, the 60-image set, the color silhouette icon. Only if you still want it
 after a month of living with M2.
 
+Status: packaging, notarization tooling, onboarding and the config surface are
+done. Signing awaits a certificate; the image set and the colour icon remain.
+**The update path was dropped** — Sparkle or electron-updater is a large
+dependency for an app with one user and no release cadence. Rebuilding is the
+update path until there is a second user.
+
+The config file is *written*, not merely read. A settings file that only exists
+once you create it is a settings file nobody knows about, and every knob here —
+the boundary, q, k — was real, tested and documented while being discoverable
+only by reading the source. It carries `//` comments, stripped on read, because
+`"q": 0.4` is meaningless without the sentence saying q is the completion rate —
+and it is named `.jsonc`, because a `.json` file full of comments is one every
+editor and every other tool reports as invalid.
+
 Note on M4: Tenant's `scripts/package.mjs:9` states plainly that it is ad-hoc
 signed and "fine for running your own build, not for handing to anyone else."
 Handing this to coworkers means an Apple Developer account, Developer ID

@@ -13,10 +13,14 @@ const targets = [
   { entry: 'src/main/index.ts', out: 'dist/main/index.cjs', platform: 'node', external: ['electron'] },
   { entry: 'src/preload/popover.ts', out: 'dist/preload/popover.cjs', platform: 'node', external: ['electron'] },
   { entry: 'src/renderer/popover/main.ts', out: 'dist/renderer/popover/main.js', platform: 'browser', external: [] },
+  { entry: 'src/preload/welcome.ts', out: 'dist/preload/welcome.cjs', platform: 'node', external: ['electron'] },
+  { entry: 'src/renderer/welcome/main.ts', out: 'dist/renderer/welcome/main.js', platform: 'browser', external: [] },
 ]
 
 await mkdir('dist/renderer/popover', { recursive: true })
 await cp('src/renderer/popover/index.html', 'dist/renderer/popover/index.html')
+await mkdir('dist/renderer/welcome', { recursive: true })
+await cp('src/renderer/welcome/index.html', 'dist/renderer/welcome/index.html')
 
 for (const target of targets) {
   const options = {

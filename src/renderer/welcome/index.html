@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'" />
+    <title>Pigment</title>
+    <style>
+      :root { color-scheme: light dark; }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        font: 13px/1.6 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+        color: canvastext; padding: 34px 28px 20px;
+        user-select: none; -webkit-user-select: none; overflow: hidden;
+      }
+      /*
+        The title bar is hidden (titleBarStyle: hiddenInset), which also removes
+        the strip macOS would normally let you drag the window by — and this
+        page paints over the whole frame, so without an explicit drag region the
+        window cannot be moved at all.
+
+        The strip covers the full width so there is somewhere to grab beside the
+        traffic lights; everything interactive below must opt back out, or the
+        drag region swallows its clicks.
+      */
+      .titlebar {
+        position: fixed; top: 0; left: 0; right: 0; height: 34px;
+        -webkit-app-region: drag;
+      }
+      h1, .sub { -webkit-app-region: drag; }
+      button, dd, code { -webkit-app-region: no-drag; }
+      h1 { font-size: 19px; letter-spacing: -0.3px; margin-bottom: 3px; }
+      .sub { opacity: 0.6; margin-bottom: 20px; }
+      dl { display: grid; grid-template-columns: 74px 1fr; gap: 9px 12px; margin-bottom: 20px; }
+      dt {
+        font-size: 10px; font-weight: 600; text-transform: uppercase;
+        letter-spacing: 0.6px; opacity: 0.4; padding-top: 3px;
+      }
+      dd { opacity: 0.88; }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11.5px; opacity: 0.75;
+      }
+      .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .note { font-size: 11.5px; opacity: 0.5; }
+      button {
+        font: inherit; font-weight: 590; color: white; background: #e8973a;
+        border: 0; border-radius: 7px; padding: 7px 20px; cursor: default;
+      }
+      button:active { filter: brightness(0.92); }
+    </style>
+  </head>
+  <body>
+    <div class="titlebar"></div>
+    <h1>Pigment</h1>
+    <div class="sub">A day is a picture. It colours in as you burn tokens.</div>
+
+    <dl>
+      <dt>Reads</dt>
+      <dd>
+        Your Claude Code session logs in <code>~/.claude/projects</code> — the
+        timestamp and token counts of each response, and nothing else.
+      </dd>
+
+      <dt>Never reads</dt>
+      <dd>
+        The content of your conversations, file paths, project names or branch
+        names. They are in those files; Pigment does not take them.
+      </dd>
+
+      <dt>Never sends</dt>
+      <dd>Anything, anywhere. There is no network code in this app.</dd>
+
+      <dt>Lives in</dt>
+      <dd>
+        The menu bar. The icon fills as the day goes on; click it for today's
+        picture and the wall behind it.
+      </dd>
+    </dl>
+
+    <div class="row">
+      <div class="note">Settings and the day boundary are in the tray menu.</div>
+      <button id="done" autofocus>Start</button>
+    </div>
+
+    <script src="main.js"></script>
+  </body>
+</html>

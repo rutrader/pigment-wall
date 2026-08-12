@@ -1,6 +1,7 @@
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, Notification, screen, Tray } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, Notification, screen, shell, Tray } from 'electron'
+import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { DEFAULTS, loadConfig } from '../core/config.ts'
+import { defaultConfigFile, loadConfig, type Config } from '../core/config.ts'
 import { Pigment, type Snapshot } from '../core/app.ts'
 import { dayLabel } from '../core/day.ts'
 import { formatCents } from '../core/cost.ts'
@@ -15,8 +16,42 @@ import { iconPng, iconStep } from './icon.ts'
  * the icon, and what the popover is handed.
  */
 
-const CONFIG = loadConfig(join(app.getPath('userData'), 'config.json'))
-const STORE = join(app.getPath('userData'), 'wall.json')
+/**
+ * `.jsonc`, not `.json`, because the file carries `//` comments.
+ *
+ * Our loader strips them, but nothing else does: an editor validating a
+ * `.json` file flags every comment line as a syntax error, and so would `jq` or
+ * any later tool. `.jsonc` is the recognised name for JSON-with-comments and is
+ * understood natively by editors, which costs nothing and stops the file
+ * declaring itself invalid.
+ *
+ * A `config.json` from an earlier build is still read, and left where it is
+ * rather than migrated — silently rewriting someone's settings file to a new
+ * path is a worse surprise than an odd extension.
+ */
+const USER_DATA = app.getPath('userData')
+const CONFIG_JSONC = join(USER_DATA, 'config.jsonc')
+const CONFIG_LEGACY = join(USER_DATA, 'config.json')
+const CONFIG_FILE = existsSync(CONFIG_JSONC) || !existsSync(CONFIG_LEGACY) ? CONFIG_JSONC : CONFIG_LEGACY
+const STORE = join(USER_DATA, 'wall.json')
+
+/**
+ * The config file is WRITTEN on first run, not merely read.
+ *
+ * A settings file that only exists once you create it is a settings file nobody
+ * knows about. Every knob here — the day boundary, the completion rate, how
+ * fast the bar reacts — is real, tested and documented, and until M4 there was
+ * no way to discover any of it short of reading the source.
+ */
+function ensureConfigFile(): void {
+  if (existsSync(CONFIG_FILE)) return
+  mkdirSync(USER_DATA, { recursive: true })
+  writeFileSync(CONFIG_FILE, defaultConfigFile())
+}
+
+ensureConfigFile()
+let CONFIG: Config = loadConfig(CONFIG_FILE)
+let configStamp = mtimeOf(CONFIG_FILE)
 
 /**
  * How often the logs are re-read.
@@ -32,10 +67,38 @@ const WALK_MS = 60_000
 
 let tray: Tray | null = null
 let popover: BrowserWindow | null = null
+let welcome: BrowserWindow | null = null
 let pigment: Pigment | null = null
 let latest: Snapshot | null = null
 let lastStep = -1
 let walkedAt = 0
+
+function mtimeOf(file: string): number {
+  try {
+    return statSync(file).mtimeMs
+  } catch {
+    return 0
+  }
+}
+
+/**
+ * Picks up an edited config without a restart.
+ *
+ * Tuning `q` and `k` is the whole reason those knobs are exposed, and a loop
+ * you must quit and relaunch to try is a loop nobody tunes. The engine is
+ * rebuilt from scratch on change, which is cheap — a full backfill is half a
+ * second — and avoids any question of half-applied settings.
+ */
+async function reloadConfigIfChanged(): Promise<boolean> {
+  const stamp = mtimeOf(CONFIG_FILE)
+  if (stamp === configStamp) return false
+
+  configStamp = stamp
+  CONFIG = loadConfig(CONFIG_FILE)
+  pigment = new Pigment(CONFIG, STORE)
+  lastStep = -1 // force the icon to redraw against the new target
+  return true
+}
 
 app.on('window-all-closed', () => {
   // A menu-bar app does not quit when its popover closes.
@@ -55,6 +118,10 @@ app.whenReady().then(async () => {
   await tick()
   setInterval(() => void tick(), TICK_MS)
 
+  // First run. Shown after the first tick so the wall is already built behind
+  // it — dismissing the panel lands on a populated app rather than an empty one.
+  if (!pigment.peek().prefs.onboarded) showWelcome()
+
   // Dev affordance: opening the popover normally needs a click on the tray,
   // which is awkward to drive from a script or a screenshot run.
   if (process.env['PIGMENT_OPEN']) {
@@ -68,6 +135,7 @@ async function tick(): Promise<void> {
 
   try {
     const now = Date.now()
+    await reloadConfigIfChanged()
     if (now - walkedAt > WALK_MS) {
       walkedAt = now
       // A new session file only becomes visible after a re-walk; without this a
@@ -206,6 +274,52 @@ function togglePopover(): void {
   if (latest) popover.webContents.send('pigment:snapshot', payload(latest))
 }
 
+/**
+ * The first-run panel.
+ *
+ * Pigment opens your transcripts — it has to, the token counts are inside them
+ * — so it owes you a plain account of what it takes from there before it starts
+ * taking it. That is the whole content: what it reads, what it never reads,
+ * that it sends nothing anywhere.
+ */
+function showWelcome(): void {
+  if (welcome) {
+    welcome.show()
+    return
+  }
+
+  welcome = new BrowserWindow({
+    width: 460,
+    height: 380,
+    resizable: false,
+    fullscreenable: false,
+    minimizable: false,
+    title: 'Pigment',
+    titleBarStyle: 'hiddenInset',
+    show: false,
+    webPreferences: {
+      preload: join(__dirname, '../preload/welcome.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  })
+
+  welcome.loadFile(join(__dirname, '../renderer/welcome/index.html'))
+  welcome.once('ready-to-show', () => welcome?.show())
+  welcome.on('closed', () => {
+    welcome = null
+  })
+
+  // An accessory app has no Dock icon, so a window it opens does not come
+  // forward on its own — without this the panel appears behind everything.
+  app.focus({ steal: true })
+}
+
+ipcMain.on('pigment:onboarded', () => {
+  pigment?.setOnboarded()
+  welcome?.close()
+})
+
 function createPopover(): BrowserWindow {
   const window = new BrowserWindow({
     width: 420,
@@ -267,6 +381,8 @@ function showMenu(): void {
       },
       { type: 'separator' },
       { label: 'Open Pigment', click: togglePopover },
+      { label: 'Settings…', click: () => void shell.openPath(CONFIG_FILE) },
+      { label: 'About Pigment…', click: showWelcome },
       { type: 'separator' },
       { label: 'Quit', click: () => app.quit() },
     ]),
