@@ -152,48 +152,6 @@ export function seal(store: Store, days: Day[], config: Config, now: number): St
   }
 }
 
-/**
- * Collapses runs of idle days for display. SPEC §4.
- *
- * One or two gray squares are information — you were around and did not work.
- * Fourteen in a row is not; it is the app shouting about your holiday, and with
- * a sharp roast attached that stops being funny.
- */
-export type WallEntry =
-  | { kind: 'day'; day: Day }
-  | { kind: 'away'; from: string; to: string; days: number }
-
-export function collapse(days: Day[], minRun = 3): WallEntry[] {
-  const entries: WallEntry[] = []
-  let run: Day[] = []
-
-  const flush = (): void => {
-    if (run.length === 0) return
-    if (run.length >= minRun) {
-      entries.push({
-        kind: 'away',
-        from: run[0]!.key,
-        to: run[run.length - 1]!.key,
-        days: run.length,
-      })
-    } else {
-      for (const day of run) entries.push({ kind: 'day', day })
-    }
-    run = []
-  }
-
-  for (const day of days) {
-    if (day.idle) run.push(day)
-    else {
-      flush()
-      entries.push({ kind: 'day', day })
-    }
-  }
-  flush()
-
-  return entries
-}
-
 function nextKey(key: string, boundaryHour: number): string {
   const [year, month, dayOfMonth] = key.split('-').map(Number)
   const date = new Date(year ?? 1970, (month ?? 1) - 1, dayOfMonth ?? 1, boundaryHour)

@@ -26,10 +26,12 @@ npm start         # build and run the app
 ```
 
 ```sh
-npm test          # 80 tests, no test dependencies
+npm test          # 95 tests, no test dependencies
 npm run typecheck
 npm run replay    # your real history through the controller, as ASCII
 npm run sweep     # grid over q and k, to check the constants against your data
+npm run package   # -> out/Pigment.app (ad-hoc signed; needed for notifications)
+npm run notarize  # Developer ID only: notarize and staple for distribution
 node src/tools/preview.ts --ascii   # look at the pictures at each fill level
 ```
 
@@ -143,10 +145,47 @@ Each drawing carries a fill `order` (subject first, background last) and a
 `background` list marking which entries are scenery, which is what gives the
 tray icon a silhouette to fill.
 
-## What M2 does not do
+## Roasts
 
-No roasts, no notifications, no overexposure copy — that is M3, deliberately
-last, because it needs real days to react to. No signing or notarization: M4.
+Six conditions — an all-time record, a fast hour, a comeback, a late session, a
+dead day, an overshoot — each with four lines and a thirty-day repeat filter.
+Only the first four may raise a notification, capped at one a day; a dead day
+and an overshoot get a line in the popover but never interrupt, because the app
+does not scold you for resting and a condition that fires on 30% of days is not
+a surprise. Toggle is the first item in the tray menu.
+
+Replayed over the last 34 real days that comes to **1.4 notifications a week**.
+
+**Notifications need a packaged build.** Run via `npm start` they fail with
+`UNErrorDomain error 1` — macOS grants notification rights to bundles, not to a
+bare `electron .`. Run `npm run package` and launch `out/Pigment.app` once to
+approve the permission prompt. Every roast appears in the popover either way.
+
+## Distribution
+
+`npm run package` builds `out/Pigment.app` with no packaging dependency — it
+copies Electron.app, drops the bundle in and rewrites six Info.plist keys. It
+signs ad-hoc by default, which is enough to run locally and enough for
+notifications.
+
+If a *Developer ID Application* certificate is in the keychain it signs with
+that instead, adding the hardened runtime and the two entitlements Electron
+needs (JIT and unsigned executable memory — without them a signed build launches
+to a blank window). Then `npm run notarize` zips with `ditto`, submits, waits,
+staples and verifies with `spctl`. Store credentials once:
+
+```sh
+xcrun notarytool store-credentials "pigment" \
+  --apple-id you@example.com --team-id TEAMID --password <app-specific-password>
+```
+
+## What is left
+
+M4: onboarding, a config surface, the full image set, and the colour silhouette
+tray icon.
+
+A native Swift/AppKit rewrite is parked, not rejected — see SPEC §13 for the
+measurements and why the cost is inverted from what you would guess.
 
 ## Privacy
 

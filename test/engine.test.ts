@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DEFAULTS, type Config } from '../src/core/config.ts'
-import { buildWall, collapse, seal, toSeal } from '../src/core/engine.ts'
+import { buildWall, seal, toSeal } from '../src/core/engine.ts'
 import { emptyStore, readStore, writeStore } from '../src/core/store.ts'
 import { emptyDay } from '../src/core/day.ts'
 import { EMPTY_USAGE, type Day, type DayTotals } from '../src/core/types.ts'
@@ -59,43 +59,6 @@ test('a day under the idle floor is idle; the lightest real working day is not',
 
   assert.equal(byKey.get('2026-08-09')!.idle, true)
   assert.equal(byKey.get('2026-08-10')!.idle, false, 'a real 11.8k day was read as absence')
-})
-
-test('short gaps show as days; three or more collapse into one away strip', () => {
-  const day = (key: string, idle: boolean): Day => ({
-    key,
-    totals: emptyDay(key),
-    target: 100_000,
-    fill: idle ? 0 : 1,
-    idle,
-    tier: 2,
-    imageId: 't2-0',
-    costCents: 0,
-    targetAfter: 100_000,
-  })
-
-  const twoGap = collapse([
-    day('2026-08-01', false),
-    day('2026-08-02', true),
-    day('2026-08-03', true),
-    day('2026-08-04', false),
-  ])
-  assert.equal(twoGap.length, 4)
-  assert.ok(twoGap.every((entry) => entry.kind === 'day'))
-
-  const holiday = collapse([
-    day('2026-08-01', false),
-    ...['02', '03', '04', '05', '06', '07', '08', '09'].map((d) => day(`2026-08-${d}`, true)),
-    day('2026-08-10', false),
-  ])
-  assert.equal(holiday.length, 3)
-  const away = holiday[1]!
-  assert.equal(away.kind, 'away')
-  if (away.kind === 'away') {
-    assert.equal(away.days, 8)
-    assert.equal(away.from, '2026-08-02')
-    assert.equal(away.to, '2026-08-09')
-  }
 })
 
 // --- SPEC §9: the seal seam --------------------------------------------------

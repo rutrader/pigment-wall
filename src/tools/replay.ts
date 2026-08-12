@@ -1,7 +1,7 @@
 import { DEFAULTS, normalise, type Config } from '../core/config.ts'
 import { formatCents } from '../core/cost.ts'
 import { accumulate } from '../core/day.ts'
-import { buildWall, collapse } from '../core/engine.ts'
+import { buildWall } from '../core/engine.ts'
 import { emptyStore } from '../core/store.ts'
 import { poolSizes } from '../art/image.ts'
 import { Tail } from '../core/tail.ts'
@@ -69,13 +69,7 @@ let complete = 0
 let active = 0
 let overexposed = 0
 
-for (const entry of collapse(wall.days)) {
-  if (entry.kind === 'away') {
-    console.log(`${pad('·', 12)}${padStart('', 9)}${padStart('', 9)}${padStart('', 6)}  away · ${entry.days} days`)
-    continue
-  }
-
-  const { day } = entry
+for (const day of wall.days) {
   if (!day.idle) {
     active++
     if (day.fill >= 1) complete++

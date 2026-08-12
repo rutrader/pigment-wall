@@ -8,6 +8,7 @@ import type { Day } from './types.ts'
  * Five conditions, and the split between which of them may interrupt you is the
  * whole design. Measured against 34 real days:
  *
+ *   first     n firings   the biggest day or fastest hour on record fell
  *   rate      4 firings   peak-hour output crossed the user's own p90
  *   late      2 firings   the session ran past 01:00
  *   comeback  0 firings   first day back after three or more away
@@ -23,7 +24,7 @@ import type { Day } from './types.ts'
  * about one or two a week, which is rare enough to still land.
  */
 
-export type EventKind = 'rate' | 'comeback' | 'late' | 'dead' | 'blown'
+export type EventKind = 'first' | 'rate' | 'comeback' | 'late' | 'dead' | 'blown'
 
 export type Event = {
   kind: EventKind
@@ -41,11 +42,15 @@ export type Event = {
     away: number
     /** Local hour the day's last message landed, or null on an idle day. */
     endedAt: number | null
+    /** Which record fell, if any. */
+    record: 'day' | 'hour' | 'both' | null
+    /** The figure that was beaten — the old best of whichever record fell. */
+    previousBest: number
   }
 }
 
 /** Kinds allowed to interrupt. The rest wait until the popover is opened. */
-export const INTERRUPTS: ReadonlySet<EventKind> = new Set<EventKind>(['rate', 'comeback', 'late'])
+export const INTERRUPTS: ReadonlySet<EventKind> = new Set<EventKind>(['first', 'rate', 'comeback', 'late'])
 
 /**
  * Peak-hour percentile that counts as a surprising rate.
@@ -63,6 +68,15 @@ const RATE_QUANTILE = 0.9
  * app would announce a "record hour" in week one and then never again.
  */
 const RATE_MIN_SAMPLE = 8
+
+/**
+ * Fewest prior active days before a record counts.
+ *
+ * Without it, day two is an all-time best and so is day three. A record is only
+ * interesting once there is a body of work to beat — the same reason the rate
+ * threshold waits for a sample.
+ */
+const RECORD_MIN_SAMPLE = 8
 
 /** A session that ran into these hours was a late one. */
 const LATE_FROM = 1
@@ -84,6 +98,7 @@ const BLOWN_AT = 2
 export function detect(days: Day[], _config: Config): Map<string, Event[]> {
   const found = new Map<string, Event[]>()
   const priorPeaks: number[] = []
+  const priorOutputs: number[] = []
   let idleRun = 0
 
   for (const day of days) {
@@ -96,12 +111,31 @@ export function detect(days: Day[], _config: Config): Map<string, Event[]> {
       costCents: day.costCents,
       away: idleRun,
       endedAt: day.totals.lastAt === null ? null : new Date(day.totals.lastAt).getHours(),
+      record: null,
+      previousBest: 0,
     }
 
     if (day.idle) {
       idleRun++
       events.push({ kind: 'dead', key: day.key, notify: false, facts })
     } else {
+      // A record: the biggest day ever, or the fastest hour ever, whichever
+      // fell. No arbitrary milestone to cross — it calibrates itself against
+      // your own history exactly as the controller and the rate trigger do, so
+      // it stays rare however much your volume changes.
+      if (priorOutputs.length >= RECORD_MIN_SAMPLE) {
+        const bestDay = Math.max(...priorOutputs)
+        const bestHour = Math.max(...priorPeaks)
+        const beatDay = day.totals.output > bestDay
+        const beatHour = day.totals.peakHourOutput > bestHour
+
+        if (beatDay || beatHour) {
+          facts.record = beatDay && beatHour ? 'both' : beatDay ? 'day' : 'hour'
+          facts.previousBest = beatDay ? bestDay : bestHour
+          events.push({ kind: 'first', key: day.key, notify: true, facts })
+        }
+      }
+
       if (idleRun >= COMEBACK_DAYS) {
         events.push({ kind: 'comeback', key: day.key, notify: true, facts })
       }
@@ -123,6 +157,7 @@ export function detect(days: Day[], _config: Config): Map<string, Event[]> {
       }
 
       priorPeaks.push(day.totals.peakHourOutput)
+      priorOutputs.push(day.totals.output)
     }
 
     if (events.length > 0) found.set(day.key, events)
@@ -134,11 +169,12 @@ export function detect(days: Day[], _config: Config): Map<string, Event[]> {
 /**
  * The one event a day leads with.
  *
- * Ranked by how unusual the condition is rather than how loud it is: a comeback
- * is rarer than a fast hour, which is rarer than a late finish. Only one line is
- * ever shown, so the ordering is the editorial decision.
+ * Ranked by how unusual the condition is rather than how loud it is: a record is
+ * rarer than a comeback, which is rarer than a fast hour, which is rarer than a
+ * late finish. Only one line is ever shown, so the ordering is the editorial
+ * decision.
  */
-const RANK: EventKind[] = ['comeback', 'rate', 'late', 'blown', 'dead']
+const RANK: EventKind[] = ['first', 'comeback', 'rate', 'late', 'blown', 'dead']
 
 export function headline(events: Event[]): Event | null {
   for (const kind of RANK) {

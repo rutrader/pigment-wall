@@ -2,7 +2,6 @@ import { app, BrowserWindow, ipcMain, Menu, nativeImage, Notification, screen, T
 import { join } from 'node:path'
 import { DEFAULTS, loadConfig } from '../core/config.ts'
 import { Pigment, type Snapshot } from '../core/app.ts'
-import { collapse } from '../core/engine.ts'
 import { dayLabel } from '../core/day.ts'
 import { formatCents } from '../core/cost.ts'
 import { iconPng, iconStep } from './icon.ts'
@@ -99,6 +98,15 @@ async function tick(): Promise<void> {
  * does not get to decide it is more important than that.
  */
 function speak(snapshot: Snapshot): void {
+  // Dev affordance: notifications only fire on genuinely rare conditions, so
+  // without a way to force one the delivery path is untestable — which is how
+  // it shipped broken in M3, verified everywhere except at the point of
+  // delivery.
+  if (process.env['PIGMENT_TEST_ROAST']) {
+    show('Still going at 02:00. The picture finished hours ago.')
+    return
+  }
+
   if (!snapshot.interrupt || !pigment) return
   if (!Notification.isSupported()) return
 
@@ -107,7 +115,25 @@ function speak(snapshot: Snapshot): void {
   // A silent miss beats a loop that re-fires the same line every five seconds.
   pigment.markDelivered(snapshot.today.key, kind, slot)
 
-  new Notification({ title: 'Pigment', body: text, silent: false }).show()
+  show(text)
+}
+
+function show(text: string): void {
+  const notification = new Notification({ title: 'Pigment', body: text, silent: false })
+
+  // macOS refuses notifications to an app it has not been asked about. Running
+  // unpackaged that is always — `npx electron .` is the generic Electron binary,
+  // and every send fails with UNErrorDomain error 1. It starts working once the
+  // app is a signed bundle the user has approved, which is M4.
+  //
+  // The line is not lost when this happens: the popover carries every roast
+  // regardless, and that is the surface the user actually goes to.
+  notification.on('failed', (_event, error) => {
+    console.warn('pigment: notification refused by the system —', error)
+  })
+  notification.on('show', () => console.log('pigment: notification delivered'))
+
+  notification.show()
 }
 
 function paintTray(snapshot: Snapshot): void {
@@ -151,11 +177,7 @@ function payload(snapshot: Snapshot) {
     overfillCap: CONFIG.overfillCap,
     boundaryHour: CONFIG.boundaryHour,
     roast: snapshot.roast,
-    entries: collapse(snapshot.wall.days).map((entry) =>
-      entry.kind === 'away'
-        ? { kind: 'away' as const, from: entry.from, to: entry.to, days: entry.days }
-        : { kind: 'day' as const, ...day(entry.day) },
-    ),
+    days: snapshot.wall.days.map(day),
   }
 }
 
@@ -187,7 +209,7 @@ function togglePopover(): void {
 function createPopover(): BrowserWindow {
   const window = new BrowserWindow({
     width: 420,
-    height: 420,
+    height: 540,
     show: false,
     frame: false,
     resizable: false,

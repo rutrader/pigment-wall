@@ -162,11 +162,18 @@ so 2k cleanly separates "worked a little" from "did not work."
 **An idle day does not update the controller.** Absence is not evidence about
 capacity; it is absence of evidence. The target freezes.
 
-**Short gaps show, long gaps collapse.** 1–2 idle days each get a gray square —
-that is real information, you were around and did not work. **3+ consecutive
-idle days collapse into one strip** reading `away · 9 days`. Fourteen gray
-tombstones is not information, it is the app shouting about your holiday, and
+**Short gaps show, long gaps collapse** — superseded, see below. 1–2 idle days
+each get a gray square; that is real information, you were around and did not
+work. **3+ consecutive idle days collapse into one strip** reading `away · 9
+days`. Fourteen gray tombstones is not information, it is the app shouting, and
 with §7 attached it becomes actively unpleasant.
+
+**Amendment: the calendar supersedes the collapse.** The strip was the answer to
+long gaps in a *flow* layout, where a run of grey squares carries no information
+except its own length. Once the wall is weekday-aligned (§6a), position encodes
+the date and a fortnight away simply *is* two rows of pale cells in the right
+place — legible at a glance, and honest in a way a summarised strip is not. The
+collapsing code and its test were removed rather than left unused.
 
 **No re-entry grace.** Coming back rusty produces genuine misses, the controller
 walks the target down ~9% each, and after four days it is 35% easier. That is
@@ -279,6 +286,26 @@ entirely. At 16px that floor is 1/16 of the unit square. A test asserts every
 declared colour is actually visible, because the failure is silent otherwise —
 it caught a leaf vein and a moon hidden under a lighthouse beam.
 
+## §6a The wall is a calendar
+
+**Seven columns, Monday first, one row per week, newest week at the top.**
+
+The first wall was a flow of tiles in reading order. It looked fine and told you
+nothing: there was no way to answer *"how was last Tuesday?"* without hovering
+over squares one at a time, because the only dates were in tooltips.
+
+Weekday alignment costs tile size — seven columns in a 420px popover means ~48px
+per day instead of ~96 — and buys the thing §0 measured and the old layout hid:
+**a weekly rhythm**. Sundays are this user's heaviest day (322k median) and
+Tuesdays their lightest (62k); every idle day in the sample fell Mon–Thu. In a
+column layout that is a bright column and a pale one. In a flow layout it is
+invisible.
+
+Newest week at the top, rather than a calendar's usual top-to-bottom order, so
+today is always on the first row and never behind a scroll. Today's picture
+stays large above the grid — it is the thing you actually came to look at, and
+it is the one place tile size still matters.
+
 ## §7 Overshoot, and the personality
 
 **Past 100%, the image overexposes. One continuous curve, capped at 4×.**
@@ -302,16 +329,50 @@ reached by grinding all day. Note that "finished in one hour" — the obvious
 trigger — has happened **zero times in 29 days** and is physically unreachable;
 do not build it.
 
-**One event system, several conditions:** p90 peak-hour rate, a comeback after
-3+ days away, a 3am session, an all-time first, a dead day. Roughly **5
-conditions × 4 quips**, with a "not seen in 30 days" filter. Six quips on one
-condition is dead content in a fortnight.
+**One event system, several conditions:** an all-time first, p90 peak-hour rate,
+a comeback after 3+ days away, a late session, a dead day — plus **an overshoot
+past 2×**, added during M3. **6 conditions × 4 quips**, with a "not seen in 30
+days" filter. Six quips on one condition is dead content in a fortnight.
+
+**An all-time first is the biggest day or the fastest hour, whichever falls.**
+No milestone to cross: a round number like 500k or $100 is arbitrary and stops
+meaning anything when your volume changes. Beating your own record calibrates
+itself, exactly as the controller and the rate trigger do, and stays rare
+however much the work shifts. It needs 8 prior active days before it counts —
+otherwise day two is an all-time best and so is day three.
+
+**Only three of the six may interrupt**, and that split is the design. Measured
+over 34 real days: `blown` fires on **30% of active days** — noise rather than
+surprise, and already said in paint by the bloom and the tray ring. `dead` would
+be the app poking you for not working, which contradicts §1 directly. Both
+produce a line in the popover, where you went looking for it, and neither may
+raise a notification. That leaves first, rate, comeback and late: **7
+notifications across the measured month, about 1.4 a week.**
+
+**Thresholds look only at days before the one being judged.** Including today
+would let a record hour raise the bar it is measured against — the same
+self-reference that once pinned the cold-start day at exactly 100% (§10).
+
+**Quip history is derived by replaying the wall, not read from what was
+delivered.** Storing only deliveries leaves every popover-only line outside the
+cooldown, and the measured month duplicated a dead-day line inside eight days.
+When a pool is exhausted the *stalest* line is reused rather than a re-hashed
+one, which could otherwise land on yesterday's.
 
 **Delivery: macOS notification, hard-capped at one per day, default on.** On
 real history that fires about twice a week — rare enough to still surprise, far
 too rare to be noise. A roast nobody reads is dead content, and popover-only
 means most are never read. The toggle is the **first item in the tray menu**, so
 the escape hatch is obvious the moment it annoys someone.
+
+**Notifications need a BUNDLE, not a certificate.** Run unpackaged, every send
+fails with `UNErrorDomain error 1`: `npx electron .` is the generic Electron
+binary and macOS will not grant notification rights to something with no bundle
+identity. Packaging fixes it — an **ad-hoc signed** `out/Pigment.app` prompts
+for permission and delivers normally. Developer ID signing is required only to
+hand the app to someone else, not to make the roast layer work for yourself.
+This was worth establishing before paying for anything: the two are separable,
+and only one of them is free.
 
 Post through the normal notification API and do not fight Focus/Do Not Disturb.
 Consider suppressing entirely while screen recording is active — *"$30 of Opus
@@ -503,6 +564,32 @@ Each of these is a decision **not to decide yet**, not an oversight.
   here and the most likely to eat the whole project.
 - **`Synero/pixel-art-studio`.** Re-evaluate at M4; see §5.
 - **The color silhouette tray icon.** §11 phase 2.
+- **A native Swift/AppKit rewrite.** Wanted, and parked deliberately. Measured
+  at the end of M4, on the packaged build:
+
+  | | |
+  | --- | --- |
+  | Bundle | **275 MB**, of which our code is **72 KB** — Electron is 99.97% |
+  | Memory | **182 MB** across 3 processes, idle |
+  | CPU | 0.0% idle |
+  | A native equivalent would be | roughly 5 MB and 30 MB |
+
+  The cost is inverted from intuition. Only **two files** in `src/` import
+  Electron and only **three lines** mention it — the shell is 784 lines. What a
+  rewrite actually costs is the other **3,364 lines of pure TypeScript** plus
+  **1,599 lines of tests**, none of which is Electron-shaped: the controller,
+  the deck, the fill, the seal seam, the importer. You would spend a week
+  reproducing behaviour that already works and end up with an app that does
+  exactly what this one does, 50× smaller.
+
+  **That trade is only worth it for the learning**, which is the stated reason —
+  so when it happens it should be scoped as *a Swift project that reimplements
+  Pigment*, not as *porting Pigment*. Those have different definitions of done,
+  and pretending otherwise is how a rewrite stalls at 80%.
+
+  If the motivation ever shifts to distribution size instead, the cheaper answer
+  is a DMG (Electron compresses to roughly 90 MB) or Tauri (~10–15 MB, Rust
+  backend, system WebKit — the renderer survives, the core does not).
 
 ## §14 The thing this app must not become
 

@@ -10,16 +10,22 @@ import { hash } from './tiers.ts'
  * congratulates you for burning tokens, because the moment it does the app is a
  * slot machine.
  *
- * Five conditions, four lines each. That ratio matters more than it looks: six
+ * Six conditions, four lines each. That ratio matters more than it looks: six
  * lines on one condition is dead content inside a fortnight, whereas twenty
  * lines across five conditions plus the thirty-day repeat filter keeps the
  * surface alive for a couple of months. When it does go stale, adding lines here
  * is the entire fix.
  *
  * Placeholders are filled from `Event.facts`:
- *   {cost} {tokens} {rate} {percent} {target} {away} {time}
+ *   {cost} {tokens} {rate} {percent} {target} {away} {time} {best}
  */
 export const QUIPS: Record<EventKind, string[]> = {
+  first: [
+    'A new record: {rate} in an hour, beating {best}. Nobody is keeping score. Except this.',
+    'Your biggest ever. {tokens} tokens, {cost}. The previous best was {best}.',
+    'That is an all-time high. The bar you just set is the one you will be measured against.',
+    'Record broken — {best} was the number to beat. It is not any more.',
+  ],
   rate: [
     '{rate} tokens in one hour. Whatever that was, it is over now.',
     'Peak hour: {rate}. That is {cost} of thinking you will read once.',
@@ -118,6 +124,7 @@ function fill(template: string, event: Event): string {
     .replaceAll('{target}', facts.target.toLocaleString())
     .replaceAll('{away}', String(facts.away))
     .replaceAll('{time}', facts.endedAt === null ? 'some hour' : `${String(facts.endedAt).padStart(2, '0')}:00`)
+    .replaceAll('{best}', facts.previousBest.toLocaleString())
 }
 
 function dayIndexOf(key: string): number {

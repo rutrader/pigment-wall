@@ -12,7 +12,9 @@
     "build": "node scripts/build.mjs",
     "start": "npm run build -- --dev && electron .",
     "icons": "node src/tools/preview.ts --ascii",
-    "import": "node src/tools/import-png.ts"
+    "import": "node src/tools/import-png.ts",
+    "package": "npm run build && node scripts/package.mjs",
+    "notarize": "node scripts/notarize.mjs"
   },
   "license": "ISC",
   "devDependencies": {

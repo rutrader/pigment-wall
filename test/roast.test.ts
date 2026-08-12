@@ -114,14 +114,14 @@ test('resting and overshooting are never allowed to interrupt', () => {
 })
 
 test('one day leads with one line, rarest condition first', () => {
-  const events: Event[] = (['dead', 'blown', 'late', 'rate', 'comeback'] as const).map((kind) => ({
+  const events: Event[] = (['dead', 'blown', 'late', 'rate', 'comeback', 'first'] as const).map((kind) => ({
     kind,
     key: '2026-07-20',
     notify: true,
-    facts: { output: 0, target: 0, fill: 0, peakHour: 0, costCents: 0, away: 0, endedAt: null },
+    facts: { output: 0, target: 0, fill: 0, peakHour: 0, costCents: 0, away: 0, endedAt: null, record: null, previousBest: 0 },
   }))
-  assert.equal(headline(events)!.kind, 'comeback')
-  assert.equal(headline(events.filter((e) => e.kind !== 'comeback'))!.kind, 'rate')
+  assert.equal(headline(events)!.kind, 'first')
+  assert.equal(headline(events.filter((e) => e.kind !== 'first'))!.kind, 'comeback')
 })
 
 // --- the quips ------------------------------------------------------------------
@@ -131,7 +131,7 @@ test('every condition has four lines and every placeholder resolves', () => {
     kind: 'rate',
     key: '2026-07-20',
     notify: true,
-    facts: { output: 250_000, target: 130_000, fill: 1.9, peakHour: 140_000, costCents: 8362, away: 4, endedAt: 2 },
+    facts: { output: 250_000, target: 130_000, fill: 1.9, peakHour: 140_000, costCents: 8362, away: 4, endedAt: 2, record: 'both', previousBest: 120_000 },
   }
 
   for (const kind of Object.keys(QUIPS) as Array<keyof typeof QUIPS>) {
@@ -149,7 +149,7 @@ test('a line is not repeated inside the cooldown', () => {
     kind: 'late',
     key: '2026-08-01',
     notify: true,
-    facts: { output: 1, target: 1, fill: 1, peakHour: 1, costCents: 1, away: 0, endedAt: 2 },
+    facts: { output: 1, target: 1, fill: 1, peakHour: 1, costCents: 1, away: 0, endedAt: 2, record: null, previousBest: 0 },
   }
 
   const history: Fired[] = []
@@ -180,7 +180,7 @@ test('the same day always gets the same words', () => {
     kind: 'blown',
     key: '2026-08-03',
     notify: false,
-    facts: { output: 850_000, target: 100_000, fill: 4, peakHour: 165_000, costCents: 31563, away: 0, endedAt: 23 },
+    facts: { output: 850_000, target: 100_000, fill: 4, peakHour: 165_000, costCents: 31563, away: 0, endedAt: 23, record: null, previousBest: 0 },
   }
   assert.equal(pickQuip(event, [], 20_000).text, pickQuip(event, [], 20_000).text)
 })
@@ -190,7 +190,7 @@ test('an exhausted pool reuses the stalest line, not a random one', () => {
     kind: 'rate',
     key: '2026-08-20',
     notify: true,
-    facts: { output: 1, target: 1, fill: 1, peakHour: 1, costCents: 1, away: 0, endedAt: 12 },
+    facts: { output: 1, target: 1, fill: 1, peakHour: 1, costCents: 1, away: 0, endedAt: 12, record: null, previousBest: 0 },
   }
 
   // All four lines used, slot 2 longest ago. With everything on cooldown the
@@ -210,9 +210,65 @@ test('history from another condition does not gag this one', () => {
     kind: 'dead',
     key: '2026-08-20',
     notify: false,
-    facts: { output: 0, target: 1, fill: 0, peakHour: 0, costCents: 0, away: 1, endedAt: null },
+    facts: { output: 0, target: 1, fill: 0, peakHour: 0, costCents: 0, away: 1, endedAt: null, record: null, previousBest: 0 },
   }
   const noise: Fired[] = [0, 1, 2, 3].map((slot) => ({ key: '2026-08-19', kind: 'rate' as const, slot }))
   const picked = pickQuip(event, noise, 20_680)
   assert.ok(QUIPS.dead.includes(picked.text), 'picked from the wrong pool')
+})
+
+// --- SPEC §7: an all-time first ------------------------------------------------
+
+test('a record fires when either the biggest day or the fastest hour falls', () => {
+  const flat = Array.from({ length: 10 }, (_, i) =>
+    day({
+      key: `2026-07-${String(i + 1).padStart(2, '0')}`,
+      totals: { ...emptyDay('x'), output: 100_000, peakHourOutput: 50_000 },
+    }),
+  )
+
+  const biggestDay = [...flat, day({ key: '2026-07-20', totals: { ...emptyDay('x'), output: 400_000, peakHourOutput: 40_000 } })]
+  const record = detect(biggestDay, CONFIG).get('2026-07-20')!.find((e) => e.kind === 'first')!
+  assert.ok(record, 'a record day did not fire')
+  assert.equal(record.facts.record, 'day')
+  assert.equal(record.facts.previousBest, 100_000, 'the copy needs the number that was beaten')
+
+  const fastestHour = [...flat, day({ key: '2026-07-20', totals: { ...emptyDay('x'), output: 60_000, peakHourOutput: 90_000 } })]
+  const hour = detect(fastestHour, CONFIG).get('2026-07-20')!.find((e) => e.kind === 'first')!
+  assert.equal(hour.facts.record, 'hour')
+  assert.equal(hour.facts.previousBest, 50_000)
+
+  const both = [...flat, day({ key: '2026-07-20', totals: { ...emptyDay('x'), output: 400_000, peakHourOutput: 90_000 } })]
+  assert.equal(detect(both, CONFIG).get('2026-07-20')!.find((e) => e.kind === 'first')!.facts.record, 'both')
+})
+
+test('matching the record is not beating it, and early days are not records', () => {
+  const flat = Array.from({ length: 10 }, (_, i) =>
+    day({ key: `2026-07-${String(i + 1).padStart(2, '0')}`, totals: { ...emptyDay('x'), output: 100_000, peakHourOutput: 50_000 } }),
+  )
+
+  const tie = [...flat, day({ key: '2026-07-20', totals: { ...emptyDay('x'), output: 100_000, peakHourOutput: 50_000 } })]
+  assert.ok(!fired(detect(tie, CONFIG), '2026-07-20', 'first'), 'a tie counted as a record')
+
+  // Day two must not be an all-time best, or the app announces records all week.
+  const young = [
+    day({ key: '2026-07-01', totals: { ...emptyDay('x'), output: 10_000 } }),
+    day({ key: '2026-07-02', totals: { ...emptyDay('x'), output: 900_000 } }),
+  ]
+  assert.ok(!fired(detect(young, CONFIG), '2026-07-02', 'first'))
+})
+
+test('a record outranks everything and may interrupt', () => {
+  assert.ok(INTERRUPTS.has('first'))
+
+  const flat = Array.from({ length: 10 }, (_, i) =>
+    day({ key: `2026-07-${String(i + 1).padStart(2, '0')}`, totals: { ...emptyDay('x'), output: 100_000, peakHourOutput: 50_000 } }),
+  )
+  // A day that is simultaneously a record, a fast hour and blown out.
+  const big = [...flat, day({ key: '2026-07-20', totals: { ...emptyDay('x'), output: 500_000, peakHourOutput: 200_000 }, target: 100_000 })]
+  const events = detect(big, CONFIG).get('2026-07-20')!
+
+  assert.ok(events.length >= 3, 'expected several conditions on one day')
+  assert.equal(headline(events)!.kind, 'first', 'the rarest thing that happened must lead')
+  assert.equal(interrupting(events)!.kind, 'first')
 })
