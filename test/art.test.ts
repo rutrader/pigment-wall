@@ -338,3 +338,98 @@ test('the imported cassette is a well-formed drawing', () => {
   assert.deepEqual([...cassette.order].sort((a, b) => a - b), used)
   assert.ok(image.subject.length > 0 && image.subject.length < 64 * 64 * 0.8)
 })
+
+
+// --- the sheet importer ---------------------------------------------------------
+
+/**
+ * A synthetic sprite sheet shaped like a real one: cells of 16 art pixels
+ * exported at 5x, sprites on transparency, and empty cells including a ragged
+ * final row.
+ */
+async function spriteSheet(): Promise<Buffer> {
+  const { encodePng } = await import('../src/main/png.ts')
+  const CELL = 16
+  const BLOCK = 5
+  const COLS = 4
+
+  // cell 0: a red disc · cell 1: a blue square · cell 2: a single speck
+  // cell 3 and everything from row 1 on: empty
+  const paint = (cell: number, x: number, y: number): [number, number, number] | null => {
+    if (cell === 0) return (x - 8) ** 2 + (y - 8) ** 2 <= 25 ? [220, 70, 60] : null
+    if (cell === 1) return x >= 5 && x < 11 && y >= 6 && y < 12 ? [70, 120, 220] : null
+    if (cell === 2) return x === 8 && y === 8 ? [10, 200, 10] : null
+    return null
+  }
+
+  const size = COLS * CELL * BLOCK
+  return encodePng(size, (px, py) => {
+    const artX = Math.floor(px / BLOCK)
+    const artY = Math.floor(py / BLOCK)
+    const cell = Math.floor(artY / CELL) * COLS + Math.floor(artX / CELL)
+    const hit = paint(cell, artX % CELL, artY % CELL)
+    return hit ? { r: hit[0], g: hit[1], b: hit[2], a: 255 } : { r: 0, g: 0, b: 0, a: 0 }
+  })
+}
+
+test('a sheet slices into one drawing per non-empty cell', async () => {
+  const { importSheet } = await import('../src/art/import.ts')
+  const sliced = importSheet(await spriteSheet(), { columns: 4, rows: 4 })
+
+  // Three cells have paint; the other thirteen are empty and must not become
+  // blank drawings — sheets are routinely ragged on the last row.
+  assert.equal(sliced.length, 3, `expected 3 sprites, got ${sliced.length}`)
+  assert.deepEqual(sliced.map((s) => s.cell), [0, 1, 2])
+  assert.deepEqual(sliced.map((s) => s.column), [0, 1, 2])
+  assert.equal(sliced[0]!.row, 0)
+})
+
+test('the upscale factor is read from the whole sheet, not from one cell', async () => {
+  const { importSheet } = await import('../src/art/import.ts')
+  const sliced = importSheet(await spriteSheet(), { columns: 4, rows: 4 })
+
+  // A flat sprite could claim a coarser grid on its own and import at half
+  // size; the sheet as a whole pins it at 5x.
+  for (const { imported } of sliced) assert.equal(imported.block, 5, 'wrong upscale detected')
+})
+
+test('each sprite is trimmed to its bounds and padded back to a square', async () => {
+  const { importSheet } = await import('../src/art/import.ts')
+  const sliced = importSheet(await spriteSheet(), { columns: 4, rows: 4 })
+
+  const disc = sliced[0]!.imported
+  const square = sliced[1]!.imported
+  const speck = sliced[2]!.imported
+
+  // A 16px cell holding an 11px disc imports as 11px, not 16 with dead space.
+  assert.ok(disc.size < 16 && disc.size >= 10, `disc imported at ${disc.size}`)
+  assert.equal(square.size, 6, 'a 6x6 sprite should import as 6x6')
+  assert.equal(speck.size, 1)
+
+  // Square, because the whole app assumes a square grid.
+  for (const { imported } of sliced) {
+    assert.equal(imported.pixels.length, imported.size * imported.size)
+  }
+})
+
+test('sprites on transparency need no scenery marked', async () => {
+  const { importSheet, guessOrder } = await import('../src/art/import.ts')
+  const [first] = importSheet(await spriteSheet(), { columns: 4, rows: 4 })
+
+  // Trimming leaves the sprite touching its own bounding box, so `edge` is not
+  // meaningful here — what matters is that the whole sprite is subject, which
+  // is what gives the tray icon a clean silhouette for free.
+  const imported = first!.imported
+  assert.ok(imported.palette.length >= 1)
+  assert.deepEqual(guessOrder(imported).sort(), imported.palette.map((_, i) => i))
+})
+
+test('a grid that does not divide the sheet is refused, not silently mangled', async () => {
+  const { importSheet } = await import('../src/art/import.ts')
+  const sheet = await spriteSheet()
+
+  await assert.rejects(
+    async () => importSheet(sheet, { columns: 5, rows: 4 }),
+    /does not divide this sheet evenly/,
+  )
+})

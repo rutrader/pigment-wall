@@ -262,8 +262,16 @@ repeats, and the deal is adjusted so a cycle never opens on the card the last on
 closed with. The shortest possible gap between two showings is now 2 days
 instead of 1, and the long-run distribution is exactly even.
 
-**Scaling path (M4, not now):** batch-generate candidates with an image model,
-hand-curate, ship as static assets. Runtime stays fully local. Evaluated
+**Scaling path — amended.** The original plan was to batch-generate candidates
+with an image model and hand-curate. Curated **CC0 sprite packs** are better for
+pixel art specifically: the grids are already clean, the palettes already small,
+and there is no generated-art tell at 32px. `npm run import -- sheet.png
+--sheet=8x5` slices a pack into one drawing per cell.
+
+Sprites also fit the format better than the scenes this shipped with. They come
+on transparency, which the art layer already reads as *outside the picture*, so
+the tray silhouette is correct with no work and the `background` field — the one
+genuinely fiddly authoring decision — is simply empty. Runtime stays fully local. Evaluated
 `Synero/pixel-art-studio` and deferred it — it downscales-and-quantizes rather
 than composing, produces no alpha, no indexed output, and no fill ordering, and
 its generated images carry Pollinations' terms rather than the repo's.
