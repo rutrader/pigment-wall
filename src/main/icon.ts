@@ -1,163 +1,123 @@
-import { overexposure, resolve, type Image } from '../art/image.ts'
+import { greyOf, overexposed, overexposure, parseHex, resolve, type Image } from '../art/image.ts'
 import { encodePng } from './png.ts'
 
 /**
- * The menu-bar icon. SPEC §11.
+ * The menu-bar icon. SPEC §11, phase 2.
  *
- * v1 is a macOS TEMPLATE image: alpha carries the shape, RGB is forced black,
- * and the system tints it for light and dark menu bars. That is how an icon
- * looks native, and it is bought at a real price — an app about colour shows no
- * colour in the menu bar until phase 2.
+ * v1 was a macOS TEMPLATE image: alpha carried the shape, RGB was forced black,
+ * and the system tinted it. Native-looking, and bought at a real price — an app
+ * about colour showed no colour in the menu bar. This is the trade §11 always
+ * intended to reverse once the rest worked.
  *
- * So fill is encoded in alpha instead. The shape is today's picture reduced to
- * its silhouette; pixels that have gained colour are solid, the rest are faint.
- * You glance up and see a half-solid fox: how far along you are, and which day
- * this is, without opening anything.
+ * The icon is now today's picture reduced to its subject silhouette, filling
+ * BOTTOM-UP as the day goes on: coloured below the water line, grey above it.
+ * That is the popover's own mechanic at 16 points, so the two surfaces say the
+ * same thing in the same language — you glance up and see a half-coloured fox,
+ * which is both how far along you are and which day this is.
  *
- * Three rules, each from §11:
+ * Bottom-up rather than the popover's palette order, deliberately. The popover
+ * answers *which thing gained colour*; the tray answers the cruder *how far
+ * along am I*, and a rising water line answers that legibly at a size where
+ * palette order would just flicker.
  *
- *   - Rendered at 2× (32px) and handed to macOS as a retina image. Silhouettes
- *     break up if you draw them at 16 and let anything upscale.
- *   - Overexposure cannot be shown in colour here, so past 100% the shape gains
- *     a RING outside its outline — a shape cue, not a colour cue.
- *   - No animation. The caller redraws only when fill crosses a step, because a
- *     visibly creeping icon is delightful for a week and a tax forever.
+ * Four rules, each from §11 and each load-bearing:
+ *
+ *   - Drawn at 2x (32px) and handed to macOS as a retina image. Silhouettes
+ *     break up if you draw at 16 and let anything upscale.
+ *   - Every icon carries a 1px contrasting halo. A non-template colour icon has
+ *     no system tinting to save it, and dark art on a dark menu bar — or a
+ *     wallpaper showing through — is otherwise invisible.
+ *   - Extreme states differ by SHAPE, not only colour. Overexposure blooms past
+ *     the outline; no-data is a hollow square. Roughly 8% of male viewers will
+ *     not distinguish some of these palettes at all.
+ *   - No animation. The caller redraws only when fill crosses a step.
  */
 
 /** Logical points. macOS menu-bar icons are ~16pt of content in a 22pt bar. */
 export const ICON_POINTS = 16
 const SCALE = 2
 
-/** Alpha for a pixel inside the silhouette that has not yet gained colour. */
-const GHOST = 0.22
-const SOLID = 1
-
 export type IconState = {
   imageId: string
   fill: number
-  /** Cap from config, so the ring saturates at the same point the art does. */
+  /** Cap from config, so the bloom saturates where the picture's does. */
   overfillCap: number
   /** No data at all: draw a hollow outline instead of a filled shape. */
   empty?: boolean
+  /**
+   * Whether the menu bar is currently dark.
+   *
+   * A template image never needed this — the system tinted it. A colour icon
+   * has to pick its own contrast, so the caller passes the current appearance
+   * and redraws when it changes.
+   */
+  dark?: boolean
 }
+
+type RGBA = { r: number; g: number; b: number; a: number }
+
+const CLEAR: RGBA = { r: 0, g: 0, b: 0, a: 0 }
 
 export function iconPng(state: IconState): Buffer {
-  const image = state.empty ? null : resolve(state.imageId)
   const size = ICON_POINTS * SCALE
+  const halo = state.dark ? { r: 255, g: 255, b: 255 } : { r: 0, g: 0, b: 0 }
 
-  const alpha = image ? alphaField(image, state, size) : null
-  const outline = image ? outlineOf(image, size) : null
-  const ring = image ? ringOf(image, size, overexposure(state.fill, state.overfillCap)) : null
+  if (state.empty) return emptyIcon(size, halo)
 
-  return encodePng(size, (x, y) => {
-    const index = y * size + x
+  const image = resolve(state.imageId)
+  const blown = overexposure(state.fill, state.overfillCap)
 
-    if (!alpha) {
-      // No data: a hollow square, so "nothing yet" is visibly different from
-      // "empty picture" rather than an invisible icon.
-      const edge = x === 1 || y === 1 || x === size - 2 || y === size - 2
-      const inside = x >= 1 && y >= 1 && x <= size - 2 && y <= size - 2
-      return { r: 0, g: 0, b: 0, a: inside && edge ? 255 * 0.5 : 0 }
-    }
-
-    const a = Math.max(alpha[index]!, ring ? ring[index]! : 0, outline ? outline[index]! : 0)
-    // Template image: RGB must be black, the system supplies the colour.
-    return { r: 0, g: 0, b: 0, a: a * 255 }
-  })
-}
-
-/**
- * Per-pixel alpha: solid where filled, ghosted where not, zero outside.
- *
- * The icon fills the subject shape BOTTOM-UP by the day's overall fill, rather
- * than replaying the palette order the picture uses. The popover shows which
- * thing gained colour; the tray answers a cruder question — how far along am I —
- * and a rising water line answers it legibly at 16 points where palette order
- * would just flicker.
- */
-function alphaField(image: Image, state: IconState, size: number): Float32Array {
-  const field = new Float32Array(size * size)
-  if (image.subject.length === 0) return field
-
+  // The water line: how many of the subject's pixels, counted bottom-up, have
+  // gained colour. `subject` is already sorted bottom-up by the art layer.
   const lit = new Set(
     image.subject.slice(0, Math.round(Math.min(state.fill, 1) * image.subject.length)),
   )
 
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      // Nearest-neighbour from the art grid — a pixel-art silhouette must stay
-      // hard-edged; smoothing it produces a grey smudge at 16pt.
-      const sx = Math.floor((x / size) * image.size)
-      const sy = Math.floor((y / size) * image.size)
-      const source = sy * image.size + sx
-      if (!subjectAt(image, source)) continue
-      field[y * size + x] = lit.has(source) ? SOLID : GHOST
+  const at = (x: number, y: number): number => sourceIndex(image, x, y, size)
+  const inside = (x: number, y: number): boolean =>
+    x >= 0 && y >= 0 && x < size && y < size && image.subjectMask[at(x, y)] === 1
+
+  return encodePng(size, (x, y) => {
+    if (inside(x, y)) {
+      const index = at(x, y)
+      const hex = image.palette[image.grid.pixels[index]!] ?? '#000000'
+      const { r, g, b } = parseHex(lit.has(index) ? overexposed(hex, blown) : greyOf(hex))
+      return { r, g, b, a: 255 }
     }
-  }
 
-  return field
-}
+    // Outside the silhouette: the halo, and the bloom that grows out of it.
+    const touching = inside(x - 1, y) || inside(x + 1, y) || inside(x, y - 1) || inside(x, y + 1)
+    if (!touching) return CLEAR
 
-/** Membership test shared by the alpha, outline and ring passes. */
-function subjectAt(image: Image, index: number): boolean {
-  return image.subjectMask[index] === 1
-}
-
-/**
- * A one-pixel edge around the silhouette, always solid.
- *
- * Without it a barely-started day is a uniform 22%-alpha blob, which reads as
- * "the app is broken" rather than "the day has just begun". The outline keeps
- * the shape legible at every fill.
- */
-function outlineOf(image: Image, size: number): Float32Array {
-  const field = new Float32Array(size * size)
-  const inside = (x: number, y: number): boolean => {
-    if (x < 0 || y < 0 || x >= size || y >= size) return false
-    const sx = Math.floor((x / size) * image.size)
-    const sy = Math.floor((y / size) * image.size)
-    return subjectAt(image, sy * image.size + sx)
-  }
-
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      if (!inside(x, y)) continue
-      const edge = !inside(x - 1, y) || !inside(x + 1, y) || !inside(x, y - 1) || !inside(x, y + 1)
-      if (edge) field[y * size + x] = 0.75
+    if (blown > 0) {
+      // Overexposure pushes the halo warm and bright — the same "too much" the
+      // picture shows, in a place a 16pt shape can carry it.
+      return { r: 255, g: 220 - Math.round(60 * blown), b: 150 - Math.round(90 * blown), a: 140 + Math.round(115 * blown) }
     }
-  }
 
-  return field
+    return { ...halo, a: 150 }
+  })
 }
 
 /**
- * The overexposure cue: a halo one pixel outside the silhouette.
+ * No data yet: a hollow square.
  *
- * §11 v1 cannot say "too much" in colour, so it says it in shape. Intensity
- * tracks the same 0..1 overshoot the picture uses for bloom, so the tray and the
- * popover agree about how extreme the day was.
+ * Different in SHAPE from every real day, not merely paler, so "nothing has
+ * happened yet" can never be mistaken for "a day that has barely started".
  */
-function ringOf(image: Image, size: number, amount: number): Float32Array {
-  const field = new Float32Array(size * size)
-  if (amount <= 0) return field
+function emptyIcon(size: number, halo: { r: number; g: number; b: number }): Buffer {
+  return encodePng(size, (x, y) => {
+    const inset = x >= 3 && y >= 3 && x <= size - 4 && y <= size - 4
+    const edge = x === 3 || y === 3 || x === size - 4 || y === size - 4
+    return inset && edge ? { ...halo, a: 130 } : CLEAR
+  })
+}
 
-  const inside = (x: number, y: number): boolean => {
-    if (x < 0 || y < 0 || x >= size || y >= size) return false
-    const sx = Math.floor((x / size) * image.size)
-    const sy = Math.floor((y / size) * image.size)
-    return subjectAt(image, sy * image.size + sx)
-  }
-
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      if (inside(x, y)) continue
-      const touches =
-        inside(x - 1, y) || inside(x + 1, y) || inside(x, y - 1) || inside(x, y + 1)
-      if (touches) field[y * size + x] = 0.35 + 0.65 * amount
-    }
-  }
-
-  return field
+/** Nearest-neighbour sample. Pixel art must stay hard-edged at any size. */
+function sourceIndex(image: Image, x: number, y: number, size: number): number {
+  const sx = Math.min(image.size - 1, Math.floor((x / size) * image.size))
+  const sy = Math.min(image.size - 1, Math.floor((y / size) * image.size))
+  return sy * image.size + sx
 }
 
 /**

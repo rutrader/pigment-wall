@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, Notification, screen, shell, Tray } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, nativeTheme, Notification, screen, shell, Tray } from 'electron'
 import { existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { defaultConfigFile, loadConfig, type Config } from '../core/config.ts'
@@ -115,6 +115,14 @@ app.whenReady().then(async () => {
   tray.on('click', togglePopover)
   tray.on('right-click', showMenu)
 
+  // The halo picks its contrast from the current appearance, so a light/dark
+  // switch has to redraw — otherwise a dark halo sits invisibly on a dark bar
+  // until the fill happens to cross a step.
+  nativeTheme.on('updated', () => {
+    lastStep = -1
+    if (latest) paintTray(latest)
+  })
+
   await tick()
   setInterval(() => void tick(), TICK_MS)
 
@@ -214,10 +222,12 @@ function paintTray(snapshot: Snapshot): void {
       imageId: snapshot.today.imageId,
       fill: snapshot.today.fill,
       overfillCap: CONFIG.overfillCap,
+      dark: nativeTheme.shouldUseDarkColors,
     })
-    const image = nativeImage.createFromBuffer(png, { scaleFactor: 2 })
-    image.setTemplateImage(true)
-    tray.setImage(image)
+    // NOT a template image (SPEC §11 phase 2): template mode forces RGB to
+    // black, which is exactly the colour this icon exists to show. The cost is
+    // that macOS no longer tints for us, which is what the halo is for.
+    tray.setImage(nativeImage.createFromBuffer(png, { scaleFactor: 2 }))
   }
 
   const percent = Math.round(snapshot.today.fill * 100)
@@ -229,12 +239,16 @@ function paintTray(snapshot: Snapshot): void {
 }
 
 function emptyIcon(): Electron.NativeImage {
-  const image = nativeImage.createFromBuffer(
-    iconPng({ imageId: '', fill: 0, overfillCap: CONFIG.overfillCap, empty: true }),
+  return nativeImage.createFromBuffer(
+    iconPng({
+      imageId: '',
+      fill: 0,
+      overfillCap: CONFIG.overfillCap,
+      empty: true,
+      dark: nativeTheme.shouldUseDarkColors,
+    }),
     { scaleFactor: 2 },
   )
-  image.setTemplateImage(true)
-  return image
 }
 
 /** Everything the renderer needs, and nothing it does not. */

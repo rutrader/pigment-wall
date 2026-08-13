@@ -23,9 +23,10 @@ position encodes the date, a weekly rhythm you'd never notice in a list becomes
 obvious — a column of bright weekends beside a column of pale Tuesdays, and a
 run of grey cells where you took a week off.
 
-Click the menu-bar icon to open it. The icon itself is today's picture reduced
-to its silhouette, filling as the day goes on, so you can read your progress
-without opening anything.
+Click the menu-bar icon to open it. The icon is today's picture reduced to its
+silhouette, colour rising through it bottom-up as the day goes on — so you can
+read your progress without opening anything. It carries a contrasting halo that
+flips with the menu bar's appearance, and past 100% it blooms.
 
 ## How the bar moves
 
@@ -132,7 +133,7 @@ week**. The toggle is the first item in the tray menu.
 ## Development
 
 ```sh
-npm test          # 97 tests, no test dependencies
+npm test          # 102 tests, no test dependencies
 npm run typecheck
 npm run replay    # your real history through the controller, as ASCII
 npm run sweep     # grid over q and k, checked against your own data
@@ -150,8 +151,8 @@ Info.plist keys.
 
 ## Status
 
-M1–M3 are done; M4 is mostly. Remaining: the full image set, a colour tray icon,
-and Developer ID signing for handing it to someone else. A native Swift/AppKit
+M1–M3 are done, and M4 all but. Remaining: the full image set, and Developer ID
+signing for handing it to someone else. A native Swift/AppKit
 rewrite is parked, not rejected — see [`docs/SPEC.md`](docs/SPEC.md) §13 for the
 measurements and why the cost is the opposite of what you'd guess.
 

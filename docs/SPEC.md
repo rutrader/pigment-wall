@@ -486,15 +486,22 @@ early days were never watched filling.
 
 ## §11 The menu bar
 
-**v1: a macOS template image. Fill encoded in alpha.**
+**A colour silhouette that fills bottom-up.** (Phase 2, shipped.)
 
-A template image is monochrome by definition — alpha carries the shape, RGB is
-forced black, the system tints for light and dark. Native behaviour for free.
-The cost is real and knowingly paid: **an app about color shows no color in the
-menu bar in v1.**
+v1 was a macOS **template image**: alpha carried the shape, RGB was forced
+black, and the system tinted it for light and dark. Native behaviour for free,
+at a cost knowingly paid — an app about colour showing no colour in the menu
+bar. Phase 2 reverses that trade now the rest works.
 
-Consequence: overexposure (§7) cannot be signalled by color. Past 100% the
-shape gains a ring outside its outline.
+The icon is today's picture reduced to its **subject silhouette**, filling
+bottom-up: coloured below the water line, grey above it. That is the popover's
+own mechanic at 16 points, so both surfaces speak the same language — a glance
+up gives you how far along you are *and* which day this is.
+
+Bottom-up rather than the popover's palette order, deliberately. The popover
+answers *which thing gained colour*; the tray answers the cruder *how far along
+am I*, and a rising water line answers that at a size where palette order would
+only flicker.
 
 **Amendment, forced by M2.** The vessel needs a *shape*, and eight of the twelve
 drawings are scenes — sky to one edge, ground to the other. Their silhouette is
@@ -509,19 +516,18 @@ thing gained colour*; the tray answers the cruder question *how far along am I*,
 and a rising water line answers that legibly at 16 points where palette order
 would just flicker.
 
-**Phase 2 — silhouette as vessel.** Today's image reduced to its outline shape,
-filling bottom-up in the day's dominant color. This makes the menu bar and the
-popover the same object: you glance up, see a half-colored fox, and know both
-how far along you are and which day it is. Requires `setTemplateImage(false)`
-and handling light/dark manually. Three rules when that lands:
+Dropping template mode means macOS no longer tints anything, so three rules
+carry the weight instead:
 
 - Draw at 32×32 and let macOS downscale, or the silhouette breaks up.
-- Outline every icon with a 1px contrasting ring — non-template color icons
-  vanish against half the wallpapers in the world, and this ships to coworkers
-  with unknown setups.
-- Distinguish extreme states by **shape**, not only color. Overexposed blooms
-  past the outline; no-data is a hollow outline. Roughly 8% of male viewers will
-  not distinguish some palettes at all.
+- **A 1px contrasting halo on every icon**, its brightness chosen from
+  `nativeTheme.shouldUseDarkColors` and redrawn when the appearance changes. A
+  colour icon has no system tinting to save it: dark art on a dark bar, or a
+  wallpaper showing through a translucent one, is otherwise invisible.
+- **Extreme states differ by shape, not only colour.** Overexposure blooms past
+  the outline and the halo grows denser; no-data is a hollow square rather than
+  a fainter picture. Roughly 8% of male viewers will not distinguish some of
+  these palettes at all, and "nothing yet" must never read as "barely started".
 
 **No animation. Redraw only when fill crosses a 2% step** — about 50 redraws on
 a working day, invisible cost, still noticeable when you glance up. A creeping
@@ -590,7 +596,6 @@ Each of these is a decision **not to decide yet**, not an oversight.
 - **Procedural / modular image generation.** The most interesting engineering
   here and the most likely to eat the whole project.
 - **`Synero/pixel-art-studio`.** Re-evaluate at M4; see §5.
-- **The color silhouette tray icon.** §11 phase 2.
 - **A native Swift/AppKit rewrite.** Wanted, and parked deliberately. Measured
   at the end of M4, on the packaged build:
 

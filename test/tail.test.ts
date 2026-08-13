@@ -298,3 +298,113 @@ test('the icon encodes a valid PNG at every fill, including empty and blown out'
   assert.equal(iconStep(0.5), iconStep(0.509))
   assert.notEqual(iconStep(0.5), iconStep(0.53))
 })
+
+type Pixel = { r: number; g: number; b: number; a: number }
+
+/** Opaque and partially-opaque pixels of a rendered icon. */
+async function iconPixels(state: {
+  imageId: string
+  fill: number
+  overfillCap: number
+  empty?: boolean
+  dark?: boolean
+}): Promise<{ solid: Pixel[]; halo: Pixel[]; size: number }> {
+  const { iconPng } = await import('../src/main/icon.ts')
+  const { decodePng } = await import('../src/art/png.ts')
+  const png = decodePng(iconPng(state))
+
+  const solid: Pixel[] = []
+  const halo: Pixel[] = []
+  for (let i = 0; i < png.width * png.height; i++) {
+    const o = i * 4
+    const px = { r: png.data[o]!, g: png.data[o + 1]!, b: png.data[o + 2]!, a: png.data[o + 3]! }
+    if (px.a === 255) solid.push(px)
+    else if (px.a > 0) halo.push(px)
+  }
+  return { solid, halo, size: png.width }
+}
+
+const saturated = (p: { r: number; g: number; b: number }): boolean =>
+  Math.max(p.r, p.g, p.b) - Math.min(p.r, p.g, p.b) > 24
+
+// --- SPEC §11 phase 2: the icon carries colour --------------------------------
+
+test('an unstarted day is grey and a finished one is not', async () => {
+  const fresh = await iconPixels({ imageId: 't2-1', fill: 0, overfillCap: 4 })
+  assert.ok(fresh.solid.length > 0, 'nothing was drawn')
+  assert.equal(fresh.solid.some(saturated), false, 'colour appeared before any tokens were spent')
+
+  const done = await iconPixels({ imageId: 't2-1', fill: 1, overfillCap: 4 })
+  assert.ok(done.solid.filter(saturated).length > 20, 'a finished day should be visibly coloured')
+})
+
+test('colour rises from the bottom as the day fills', async () => {
+  const { iconPng } = await import('../src/main/icon.ts')
+  const { decodePng } = await import('../src/art/png.ts')
+
+  const litRows = async (fill: number): Promise<number[]> => {
+    const png = decodePng(iconPng({ imageId: 't2-1', fill, overfillCap: 4 }))
+    const rows: number[] = []
+    for (let y = 0; y < png.height; y++) {
+      for (let x = 0; x < png.width; x++) {
+        const o = (y * png.width + x) * 4
+        const px = { r: png.data[o]!, g: png.data[o + 1]!, b: png.data[o + 2]! }
+        if (png.data[o + 3] === 255 && saturated(px)) {
+          rows.push(y)
+          break
+        }
+      }
+    }
+    return rows
+  }
+
+  const half = await litRows(0.5)
+  const full = await litRows(1)
+  assert.ok(half.length > 0, 'half a day coloured nothing')
+  assert.ok(full.length > half.length, 'more fill must colour more of the shape')
+
+  // Everything coloured at half fill sits in the lower part: a water line, not
+  // a wash. The popover's palette order would scatter colour instead.
+  const { size } = await iconPixels({ imageId: 't2-1', fill: 0.5, overfillCap: 4 })
+  assert.ok(Math.min(...half) > size * 0.3, 'colour reached the top before the bottom was full')
+})
+
+test('every icon carries a halo, and it flips with the menu bar', async () => {
+  // A non-template colour icon gets no system tinting: without contrast it
+  // disappears against a menu bar of a similar shade.
+  const onLight = await iconPixels({ imageId: 't2-1', fill: 0.6, overfillCap: 4, dark: false })
+  const onDark = await iconPixels({ imageId: 't2-1', fill: 0.6, overfillCap: 4, dark: true })
+
+  assert.ok(onLight.halo.length > 10, 'no halo drawn for a light menu bar')
+  assert.ok(onDark.halo.length > 10, 'no halo drawn for a dark menu bar')
+
+  const brightness = (list: Pixel[]): number =>
+    list.reduce((sum, p) => sum + p.r + p.g + p.b, 0) / Math.max(list.length, 1)
+
+  assert.ok(
+    brightness(onDark.halo) > brightness(onLight.halo) + 100,
+    'the halo does not change with the menu bar appearance',
+  )
+})
+
+test('overexposure is visible in shape as well as colour', async () => {
+  const normal = await iconPixels({ imageId: 't2-1', fill: 1, overfillCap: 4, dark: true })
+  const blown = await iconPixels({ imageId: 't2-1', fill: 3, overfillCap: 4, dark: true })
+
+  // Roughly 8% of male viewers cannot rely on a hue cue, so the bloom also gets
+  // denser — legible without seeing the colour change at all.
+  const opacity = (list: Pixel[]): number =>
+    list.reduce((sum, p) => sum + p.a, 0) / Math.max(list.length, 1)
+  assert.ok(opacity(blown.halo) > opacity(normal.halo), 'the bloom is a colour-only cue')
+})
+
+test('no data at all is a different shape, not merely a paler one', async () => {
+  const empty = await iconPixels({ imageId: '', fill: 0, overfillCap: 4, empty: true })
+  const day = await iconPixels({ imageId: 't2-1', fill: 0, overfillCap: 4 })
+
+  // A hollow square: nothing fully opaque, and a real day fills far more of the
+  // canvas. "Nothing yet" must never read as "a day that barely started".
+  assert.equal(empty.solid.length, 0)
+  assert.ok(empty.halo.length > 20)
+  assert.ok(day.solid.length > empty.halo.length, 'a real day should be more filled in')
+})
