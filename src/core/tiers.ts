@@ -7,9 +7,10 @@
  * week the picture is noticeably busier, and the raised bar announces itself
  * through the art instead of hiding in a float.
  *
- * Three tiers, not five. With twelve drawings, five tiers gives 2–3 each —
- * repeats every ~10 days and a difference between adjacent tiers nobody can
- * see. Three gives four apiece and unmistakable jumps.
+ * Three tiers, not five. Five tiers splits the library into pools too small to
+ * hide a repeat — and, worse, makes the difference between adjacent tiers too
+ * small for anyone to see. Three gives ten drawings apiece and unmistakable
+ * jumps between them.
  *
  * AMENDMENT to the spec's first draft, forced by replaying real history: the
  * tier bands were originally absolute token counts (<90k, 90k–200k, >200k). On
@@ -79,10 +80,22 @@ export function baselineOf(recentTargets: number[]): number {
 }
 
 /**
- * Which image a given day shows.
+ * Which image a given day shows — by NAME, not by slot.
  *
  * Deterministic in the date, so recomputing a day (SPEC §9) yields the same fox
  * rather than a different one on every launch.
+ *
+ * It returns the drawing's own id rather than its position in the pool, and that
+ * distinction is the whole point. The first version wrote down `t1-2`, meaning
+ * "slot 2 of tier 1" — stable only while the pool was. Importing a batch of art
+ * grew tier 1 from four drawings to forty-one, every slot index shifted, and
+ * months of sealed days silently changed picture: a day that had shown a moon
+ * for weeks was suddenly a gravestone. Sealing a day is supposed to make it
+ * permanent (SPEC §9); the fill was permanent and the picture was not.
+ *
+ * Naming the drawing makes a sealed day survive any change to the library —
+ * additions, deletions, reordering. That matters more than it sounds, because
+ * adding a picture is the one thing a person is guaranteed to do repeatedly.
  *
  * A shuffled DECK rather than a hash. Hashing the date is the obvious approach
  * and it is uniform in the long run — within 1% over two years — but uniform is
@@ -94,14 +107,15 @@ export function baselineOf(recentTargets: number[]): number {
  * The deck is reshuffled each cycle, seeded by the cycle number, so the order
  * still varies rather than marching 1,2,3,4,1,2,3,4 forever.
  */
-export function imageFor(key: string, tier: Tier, poolSize: number): string {
-  if (poolSize <= 0) return `t${tier.index}-0`
+export function imageFor(key: string, tier: Tier, pool: string[]): string {
+  if (pool.length === 0) return ''
 
+  const poolSize = pool.length
   const day = dayNumber(key)
   const cycle = Math.floor(day / poolSize)
   const position = ((day % poolSize) + poolSize) % poolSize
 
-  return `t${tier.index}-${dealFor(poolSize, cycle, tier.index)[position]}`
+  return pool[dealFor(poolSize, cycle, tier.index)[position]!]!
 }
 
 /**

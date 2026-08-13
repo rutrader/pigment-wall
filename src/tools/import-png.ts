@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { guessOrder, importPng, importSheet, type Imported } from '../art/import.ts'
 
@@ -75,7 +75,14 @@ function importSingle(): void {
     : imported.edge
   const order = args.has('order') ? numbers(String(args.get('order'))) : guessOrder(imported)
 
+  if (!mayWrite(id)) {
+    console.error(`\n  ${id} already exists. Re-importing would discard any order or`)
+    console.error('  background you corrected by hand. Pass --force to replace it.\n')
+    process.exit(1)
+  }
+
   const path = write(id, imported, order, background, basename(file!))
+  writeIndex()
   console.log(`\n  order      ${JSON.stringify(order)}${args.has('order') ? '' : '   (guessed)'}`)
   console.log(`  background ${JSON.stringify(background)}${args.has('background') ? '' : '   (guessed: colours touching the border)'}`)
   console.log(`\n  wrote ${path}\n`)
@@ -106,12 +113,18 @@ function importSheetFile(): void {
   console.log('  cell   id                     grid  colours  pixels')
 
   let written = 0
+  let skipped = 0
   for (const { cell, imported } of sliced) {
     const opaque = imported.counts.reduce((a, b) => a + b, 0)
     const id = `${prefix}-${String(cell).padStart(2, '0')}`
 
     if (opaque < min) {
       console.log(`  ${String(cell).padStart(4)}   ${id.padEnd(22)} ${`${imported.size}²`.padStart(5)}  ${String(imported.palette.length).padStart(7)}  ${String(opaque).padStart(6)}  skipped (too small)`)
+      continue
+    }
+
+    if (!mayWrite(id)) {
+      skipped++
       continue
     }
 
@@ -122,9 +135,11 @@ function importSheetFile(): void {
     console.log(`  ${String(cell).padStart(4)}   ${id.padEnd(22)} ${`${imported.size}²`.padStart(5)}  ${String(imported.palette.length).padStart(7)}  ${String(opaque).padStart(6)}`)
   }
 
-  console.log(`\n  wrote ${written} drawings to ${outDir}/`)
-  console.log('  next: import the ones you want in src/art/library.ts and add them to LIBRARY,')
-  console.log('        then `node src/tools/preview.ts --ascii` to see them fill.\n')
+  const total = writeIndex()
+  console.log(`\n  wrote ${written} drawings to ${outDir}/ (${total} there in total)`)
+  if (skipped > 0) console.log(`  ${skipped} already existed and were left alone (--force to replace).`)
+  console.log('  they are live: src/art/imported/index.ts is regenerated and LIBRARY spreads it.')
+  console.log('  drop any you dislike by deleting the file and re-running an import.\n')
 }
 
 // --- a folder of separate sprites ----------------------------------------------
@@ -148,6 +163,7 @@ function importFolder(): void {
 
   let written = 0
   let refused = 0
+  let skipped = 0
 
   for (const name of files) {
     const id = `${prefix}-${slug(name)}`
@@ -166,6 +182,11 @@ function importFolder(): void {
     const opaque = imported.counts.reduce((a, b) => a + b, 0)
     if (opaque < min) continue
 
+    if (!mayWrite(id)) {
+      skipped++
+      continue
+    }
+
     write(id, imported, guessOrder(imported), [], name)
     written++
     console.log(
@@ -175,12 +196,14 @@ function importFolder(): void {
   }
 
   if (refused > 3) console.log(`  … and ${refused - 3} more refused`)
-  console.log(`\n  wrote ${written} drawings to ${outDir}/`)
+  const total = writeIndex()
+  console.log(`\n  wrote ${written} drawings to ${outDir}/ (${total} there in total)`)
+  if (skipped > 0) console.log(`  ${skipped} already existed and were left alone (--force to replace).`)
   if (refused > 0) {
-    console.log(`  ${refused} refused — usually means the pack is not pixel art.`)
+    console.log(`  ${refused} refused — the art is not pixel art, or not a format we read.`)
     console.log('  Kenney ships both kinds; look for the ones tagged pixel art, e.g. Tiny Dungeon.')
   }
-  console.log('  next: import the ones you want in src/art/library.ts and add them to LIBRARY.\n')
+  console.log('  they are live: src/art/imported/index.ts is regenerated and LIBRARY spreads it.\n')
 }
 
 // --- shared --------------------------------------------------------------------
@@ -193,6 +216,18 @@ function report(imported: Imported): void {
     const share = ((imported.counts[i]! / total) * 100).toFixed(1).padStart(5)
     console.log(`  ${String(i).padStart(3)}  ${hex}  ${share}%${imported.edge.includes(i) ? '  yes' : ''}`)
   })
+}
+
+/**
+ * Whether an existing drawing may be replaced.
+ *
+ * `order` and `background` are the two fields a person corrects by hand after
+ * importing, and re-running an import silently threw those corrections away —
+ * twice, during development, on the same drawing. Imports are additive now;
+ * replacing an existing drawing takes --force.
+ */
+function mayWrite(id: string): boolean {
+  return args.has('force') || !existsSync(join(outDir, `${id}.ts`))
 }
 
 function write(
@@ -238,4 +273,38 @@ export const ${constant}: Drawing = {
 
 function numbers(value: string): number[] {
   return value.split(',').filter(Boolean).map(Number)
+}
+
+/**
+ * Rewrites `src/art/imported/index.ts` to re-export every drawing in the folder.
+ *
+ * Imports are static so the bundler can see them, but hand-maintaining forty
+ * import lines is how a folder and a library drift apart. The index is derived
+ * from what is actually on disk, so deleting a drawing is deleting one file.
+ */
+function writeIndex(): number {
+  const files = readdirSync(outDir)
+    .filter((name) => name.endsWith('.ts') && name !== 'index.ts')
+    .sort()
+
+  const constant = (name: string): string =>
+    name.replace(/\.ts$/, '').replace(/-([a-z0-9])/g, (_, c: string) => c.toUpperCase())
+
+  const body = `import type { Drawing } from '../library.ts'
+${files.map((f) => `import { ${constant(f)} } from './${f}'`).join('\n')}
+
+/**
+ * Every imported drawing, generated by \`npm run import\`.
+ *
+ * Do not edit by hand — it is rewritten from the contents of this folder on
+ * every import. To remove a drawing, delete its file and re-run the importer
+ * (or any import) to refresh this list.
+ */
+export const IMPORTED: Drawing[] = [
+${files.map((f) => `  ${constant(f)},`).join('\n')}
+]
+`
+
+  writeFileSync(join(outDir, 'index.ts'), body)
+  return files.length
 }

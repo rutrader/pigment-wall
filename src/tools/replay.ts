@@ -3,7 +3,7 @@ import { formatCents } from '../core/cost.ts'
 import { accumulate } from '../core/day.ts'
 import { buildWall } from '../core/engine.ts'
 import { emptyStore } from '../core/store.ts'
-import { poolSizes } from '../art/image.ts'
+import { poolIds } from '../art/image.ts'
 import { Tail } from '../core/tail.ts'
 import { BASELINE_DAYS, baselineOf, tierFor } from '../core/tiers.ts'
 
@@ -54,7 +54,7 @@ const started = Date.now()
 const tail = new Tail(config)
 const records = await tail.readAll(since)
 const totals = accumulate(records, config.boundaryHour)
-const wall = buildWall({ totals, store: emptyStore(), config, now, pools: poolSizes() })
+const wall = buildWall({ totals, store: emptyStore(), config, now, pools: poolIds() })
 const elapsed = Date.now() - started
 
 const WIDTH = 24

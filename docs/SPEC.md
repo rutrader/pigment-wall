@@ -233,13 +233,30 @@ Tiers exist for exactly one reason: **to make the controller's state visible.**
 After a heavy week the picture is visibly busier, and the raised bar announces
 itself through the art instead of hiding in a float.
 
-Three tiers, not five: with 12 drawings, five tiers gives 2–3 each — repeats
-every ~10 days and a difference between tier 3 and 4 nobody can see. Three
-tiers gives four drawings each and unmistakable jumps.
+Three tiers, not five: five splits the library into pools too small to hide a
+repeat, and puts a difference between tier 3 and 4 that nobody can see. Three
+tiers gives ten drawings each and unmistakable jumps.
+
+Ten per tier, not four. Four was the M2 figure and it turned out to be the
+repeat interval: roughly a third of days land in one tier, so a pool of four put
+the same picture on the wall about weekly — often enough to notice and be bored
+by. Ten pushes the shortest repeat past a month.
 
 **Image choice is `hash(date)` over the tier pool** — deterministic, so
 recomputing a day (§9) yields the same image rather than a different one each
 launch.
+
+**Amendment, forced by importing art.** A day used to record its picture as
+`t1-2`, meaning *slot 2 of tier 1*. That is stable only while the pool is.
+Importing a batch of art grew tier 1 from four drawings to forty-one, every slot
+shifted, and months of sealed days silently changed picture — a day that had
+shown a moon for weeks became a gravestone. The fill was permanent and the
+picture was not, which makes §9's guarantee half a guarantee.
+
+A day now records the drawing's **name**. Names survive additions, deletions and
+reordering, and adding a picture is the one thing a person is guaranteed to do
+repeatedly. Ids in the old slot format still resolve by position, because a slot
+is all the information those days ever recorded.
 
 **Amendment: art can now be imported, not only authored.** `npm run import`
 turns a PNG into a `Drawing`. It recovers the artist's grid rather than
@@ -520,7 +537,7 @@ answers *which thing gained colour*; the tray answers the cruder *how far along
 am I*, and a rising water line answers that at a size where palette order would
 only flicker.
 
-**Amendment, forced by M2.** The vessel needs a *shape*, and eight of the twelve
+**Amendment, forced by M2.** The vessel needs a *shape*, and most of the
 drawings are scenes — sky to one edge, ground to the other. Their silhouette is
 the whole canvas, so the icon rendered as a filled square: no shape to
 recognise, and no outside for the overexposure ring to occupy. Each drawing now

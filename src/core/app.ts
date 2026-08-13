@@ -4,7 +4,7 @@ import { accumulate } from './day.ts'
 import { buildWall, seal, toSeal, type Wall } from './engine.ts'
 import { emptyStore, readStore, writeStore, type Store } from './store.ts'
 import { Tail } from './tail.ts'
-import { poolSizes } from '../art/image.ts'
+import { poolIds } from '../art/image.ts'
 import { BASELINE_DAYS, baselineOf, dayNumber, tierFor, type Tier } from './tiers.ts'
 import { detect, headline, interrupting, type Event } from './events.ts'
 import { pickQuip, type Fired } from './quips.ts'
@@ -142,7 +142,7 @@ export class Pigment {
       store: this.store,
       config: this.config,
       now,
-      pools: poolSizes(),
+      pools: poolIds(),
     })
 
     const sealed = seal(this.store, toSeal(wall, this.config, now), this.config, now)

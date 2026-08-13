@@ -11,6 +11,9 @@ import { EMPTY_USAGE, type Day, type DayTotals } from '../src/core/types.ts'
 
 const CONFIG: Config = DEFAULTS
 
+/** Stand-in drawing names, so these tests do not move when the library does. */
+const POOL = ['one', 'two', 'three', 'four']
+
 /** `now` fixed so a test never straddles a real 04:00 boundary. */
 const NOW = new Date(2026, 7, 11, 12, 0).getTime()
 
@@ -31,7 +34,7 @@ function totalsFor(entries: Record<string, number>): Map<string, DayTotals> {
 }
 
 function wallFrom(entries: Record<string, number>, store = emptyStore()) {
-  return buildWall({ totals: totalsFor(entries), store, config: CONFIG, now: NOW, pools: { 1: 4, 2: 4, 3: 4 } })
+  return buildWall({ totals: totalsFor(entries), store, config: CONFIG, now: NOW, pools: { 1: POOL, 2: POOL, 3: POOL } })
 }
 
 // --- SPEC §4: idle days ------------------------------------------------------
@@ -81,7 +84,7 @@ test('sealed days are taken verbatim and the controller resumes from their targe
     store: { ...emptyStore(), days: [sealed] },
     config: CONFIG,
     now: NOW,
-    pools: { 1: 4, 2: 4, 3: 4 },
+    pools: { 1: POOL, 2: POOL, 3: POOL },
   })
 
   const kept = wall.days.find((day) => day.key === '2026-08-01')!
@@ -110,7 +113,7 @@ test('days inside the 48-hour window are recomputed, not read from the store', (
     store: { ...emptyStore(), days: [stale] },
     config: CONFIG,
     now: NOW,
-    pools: { 1: 4, 2: 4, 3: 4 },
+    pools: { 1: POOL, 2: POOL, 3: POOL },
   })
 
   const today = wall.days.find((day) => day.key === '2026-08-11')!
@@ -157,7 +160,7 @@ test('a recompute of unsealed history matches what a sealed wall reports', () =>
     store,
     config: CONFIG,
     now: NOW,
-    pools: { 1: 4, 2: 4, 3: 4 },
+    pools: { 1: POOL, 2: POOL, 3: POOL },
   })
 
   assert.equal(resumed.days.length, fresh.days.length)

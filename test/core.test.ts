@@ -252,11 +252,14 @@ test('the baseline is a median, so one spike week cannot re-label normal days', 
   assert.equal(baselineOf([]), 0)
 })
 
+/** A pool of made-up drawing names, so the tests do not ride on the real library. */
+const pool = (size: number): string[] => Array.from({ length: size }, (_, i) => `drawing-${i}`)
+
 test('image choice is deterministic in the date, so recomputing a day is stable', () => {
   const tier = TIERS[1]!
-  assert.equal(imageFor('2026-08-11', tier, 4), imageFor('2026-08-11', tier, 4))
-  assert.notEqual(imageFor('2026-08-11', tier, 4), imageFor('2026-08-12', tier, 4))
-  assert.ok(imageFor('2026-08-11', tier, 4).startsWith('t2-'))
+  assert.equal(imageFor('2026-08-11', tier, pool(4)), imageFor('2026-08-11', tier, pool(4)))
+  assert.notEqual(imageFor('2026-08-11', tier, pool(4)), imageFor('2026-08-12', tier, pool(4)))
+  assert.ok(pool(4).includes(imageFor('2026-08-11', tier, pool(4))))
 })
 
 test('BASELINE_DAYS is long enough to outlast a bad week', () => {
@@ -326,23 +329,23 @@ test('a deck deals every picture once before any repeats', async () => {
   const { imageFor, deck } = await import('../src/core/tiers.ts')
   const tier = TIERS[2]!
 
-  for (const pool of [4, 5, 7]) {
+  for (const size of [4, 5, 7]) {
     const seen = new Map<string, number>()
     let shortestGap = Infinity
     const date = new Date(Date.UTC(2026, 0, 1))
 
     for (let i = 0; i < 730; i++) {
       const key = date.toISOString().slice(0, 10)
-      const id = imageFor(key, tier, pool)
+      const id = imageFor(key, tier, pool(size))
       if (seen.has(id)) shortestGap = Math.min(shortestGap, i - seen.get(id)!)
       seen.set(id, i)
       date.setUTCDate(date.getUTCDate() + 1)
     }
 
-    assert.equal(seen.size, pool, `pool ${pool}: not every picture was used`)
+    assert.equal(seen.size, size, `pool ${size}: not every picture was used`)
     // A hash would allow a gap of 1 — the same picture two days running. That
     // is the failure the deck exists to prevent.
-    assert.ok(shortestGap >= 2, `pool ${pool}: same picture repeated after ${shortestGap} day(s)`)
+    assert.ok(shortestGap >= 2, `pool ${size}: same picture repeated after ${shortestGap} day(s)`)
   }
 })
 
@@ -352,7 +355,7 @@ test('every picture appears about equally often over two years', async () => {
   const date = new Date(Date.UTC(2026, 0, 1))
 
   for (let i = 0; i < 730; i++) {
-    const id = imageFor(date.toISOString().slice(0, 10), TIERS[1]!, 4)
+    const id = imageFor(date.toISOString().slice(0, 10), TIERS[1]!, pool(4))
     counts.set(id, (counts.get(id) ?? 0) + 1)
     date.setUTCDate(date.getUTCDate() + 1)
   }
@@ -365,7 +368,7 @@ test('every picture appears about equally often over two years', async () => {
 
 test('a deal is stable, so recomputing a day never changes its picture', async () => {
   const { imageFor, deck } = await import('../src/core/tiers.ts')
-  assert.equal(imageFor('2026-08-12', TIERS[2]!, 5), imageFor('2026-08-12', TIERS[2]!, 5))
+  assert.equal(imageFor('2026-08-12', TIERS[2]!, pool(5)), imageFor('2026-08-12', TIERS[2]!, pool(5)))
   assert.deepEqual(deck(6, 12345), deck(6, 12345))
   assert.notDeepEqual(deck(6, 12345), deck(6, 999))
   assert.deepEqual([...deck(6, 42)].sort((a, b) => a - b), [0, 1, 2, 3, 4, 5])

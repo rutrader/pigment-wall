@@ -2,7 +2,7 @@ import { DEFAULTS, normalise } from '../core/config.ts'
 import { accumulate } from '../core/day.ts'
 import { buildWall } from '../core/engine.ts'
 import { emptyStore } from '../core/store.ts'
-import { poolSizes } from '../art/image.ts'
+import { poolIds } from '../art/image.ts'
 import { Tail } from '../core/tail.ts'
 
 /**
@@ -42,7 +42,7 @@ console.log(`    q     k  complete  settled     tiers    move  capped   final ta
 for (const q of QS) {
   for (const k of KS) {
     const config = normalise({ ...base, q, k })
-    const wall = buildWall({ totals, store: emptyStore(), config, now, pools: poolSizes() })
+    const wall = buildWall({ totals, store: emptyStore(), config, now, pools: poolIds() })
 
     const active = wall.days.filter((day) => !day.idle)
     const settled = active.slice(Math.floor(active.length / 2))

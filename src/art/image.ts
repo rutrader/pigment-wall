@@ -1,4 +1,4 @@
-import { drawingsForTier, type Drawing } from './library.ts'
+import { drawingsForTier, LIBRARY, type Drawing } from './library.ts'
 import { colourCounts, paint, type Grid } from './shapes.ts'
 import { TIERS } from '../core/tiers.ts'
 
@@ -187,11 +187,24 @@ export function parseHex(hex: string): { r: number; g: number; b: number } {
 /**
  * The image a day shows, resolved from its stored id.
  *
- * `imageFor` in tiers.ts produces ids like `t2-3`; the wall stores that string,
- * so the picture a sealed day shows can never drift even if the library is
- * reordered later — the slot is what was written down.
+ * `imageFor` in tiers.ts writes down the drawing's own id, so a sealed day keeps
+ * its picture through any change to the library.
+ *
+ * Two fallbacks, in order:
+ *
+ *   - `t<tier>-<slot>`, the id format used before drawings were named. Stores
+ *     written by an earlier build still contain these, and a slot is all the
+ *     information there is — so it resolves the old way, by position. Those days
+ *     stay as vulnerable to a library change as they always were; the format
+ *     cannot retroactively remember what it never recorded. New seals are named.
+ *   - Anything else, including a drawing that has since been deleted, falls back
+ *     to the first tier-2 drawing. A wall with a hole in it is worse than a wall
+ *     with one wrong picture.
  */
 export function resolve(imageId: string): Image {
+  const named = LIBRARY.find((drawing) => drawing.id === imageId)
+  if (named) return render(named)
+
   const match = /^t(\d+)-(\d+)$/.exec(imageId)
   const tier = match ? Number(match[1]) : 2
   const slot = match ? Number(match[2]) : 0
@@ -201,11 +214,17 @@ export function resolve(imageId: string): Image {
   return render(drawing)
 }
 
-/** How many drawings exist per tier — what `imageFor` needs to pick a slot. */
-export function poolSizes(): Record<number, number> {
+/**
+ * The drawing ids available in each tier — what `imageFor` deals from.
+ *
+ * Ids rather than a count, so the deal names a picture instead of pointing at a
+ * position that the next import will renumber.
+ */
+export function poolIds(): Record<number, string[]> {
+  const ids = (tier: number): string[] => drawingsForTier(tier).map((drawing) => drawing.id)
   return {
-    1: drawingsForTier(1).length,
-    2: drawingsForTier(2).length,
-    3: drawingsForTier(3).length,
+    1: ids(1),
+    2: ids(2),
+    3: ids(3),
   }
 }

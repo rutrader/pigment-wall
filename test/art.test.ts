@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { colourMask, greyOf, overexposed, overexposure, parseHex, poolSizes, render, resolve } from '../src/art/image.ts'
+import { colourMask, greyOf, overexposed, overexposure, parseHex, poolIds, render, resolve } from '../src/art/image.ts'
 import { LIBRARY, drawingsForTier } from '../src/art/library.ts'
 import { TIERS } from '../src/core/tiers.ts'
 
@@ -29,10 +29,35 @@ test('every drawing declares a fill order covering exactly the colours it uses',
 })
 
 test('every tier has a pool of at least four, so repeats are not weekly', () => {
-  const pools = poolSizes()
+  const pools = poolIds()
   for (const tier of [1, 2, 3]) {
-    assert.ok((pools[tier] ?? 0) >= 4, `tier ${tier} has only ${pools[tier]} drawings`)
+    assert.ok((pools[tier] ?? []).length >= 4, `tier ${tier} has only ${pools[tier]?.length} drawings`)
   }
+})
+
+test('every drawing has a unique id — a sealed day resolves by name', () => {
+  const ids = new Set(LIBRARY.map((drawing) => drawing.id))
+  assert.equal(ids.size, LIBRARY.length, 'two drawings share an id, so one is unreachable')
+})
+
+test('a sealed day keeps its picture when the library grows around it', () => {
+  // The bug this pins down: ids used to mean "slot N of tier T", so importing
+  // art renumbered every slot and months of sealed days changed picture. A name
+  // is not a position, so it survives anything happening either side of it.
+  const subject = drawingsForTier(2)[0]!
+  const before = resolve(subject.id)
+
+  const shifted = [...LIBRARY].reverse().find((drawing) => drawing.id === subject.id)!
+  assert.equal(shifted.id, subject.id)
+  assert.deepEqual(resolve(subject.id).grid.pixels, before.grid.pixels)
+})
+
+test('an id from an older build still resolves rather than showing nothing', () => {
+  // Stores written before drawings were named hold `t2-1`. There is no name to
+  // recover, so it resolves by slot the old way — but it must never blank out.
+  assert.ok(resolve('t2-1').total > 0)
+  assert.ok(resolve('t9-99').total > 0, 'a tier that no longer exists still needs a picture')
+  assert.ok(resolve('deleted-drawing').total > 0, 'a deleted drawing leaves a wall, not a hole')
 })
 
 test('each drawing renders at its tier canvas and fills it', () => {

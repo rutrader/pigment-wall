@@ -36,13 +36,13 @@ export type BuildInput = {
   config: Config
   now: number
   /**
-   * How many drawings exist per tier.
+   * The drawing ids available in each tier.
    *
-   * Per-tier, not one number: the pools drift apart the moment a drawing is
-   * added to one tier, and a global count silently makes the extra art
-   * unreachable — `hash % 4` never yields slot 4.
+   * Per-tier, not one list: the pools drift apart the moment a drawing is added
+   * to one tier, and a single global pool silently makes the extra art
+   * unreachable — a deal of four never yields the fifth picture.
    */
-  pools: Record<number, number>
+  pools: Record<number, string[]>
 }
 
 /**
@@ -108,7 +108,7 @@ export function buildWall(input: BuildInput): Wall {
       fill: fillOf(dayTotals.output, target, config),
       idle,
       tier: tier.index,
-      imageId: imageFor(key, tier, pools[tier.index] ?? 1),
+      imageId: imageFor(key, tier, pools[tier.index] ?? []),
       costCents: costCents(dayTotals.usage),
       // An idle day freezes the controller: absence is not evidence about
       // capacity, it is absence of evidence (SPEC §4).
