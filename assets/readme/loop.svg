@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 260" width="1200" height="260" role="img" aria-labelledby="lt ld">
+  <title id="lt">How the difficulty loop works</title>
+  <desc id="ld">Four steps: tokens read from session logs, a target at your 40th-percentile day, fill as tokens divided by target, and a target that rises when you beat it and eases when you miss.</desc>
+  <rect width="1200" height="260" rx="18" fill="#12141a"/>
+  <text x="600" y="34" font-family="ui-monospace, SFMono-Regular, Menlo, 'DejaVu Sans Mono', monospace" font-size="19" letter-spacing="2.5" fill="#8b93a1" text-anchor="middle">THE LOOP</text>
+
+    <g>
+      <rect x="48" y="52" width="252" height="140" rx="12" fill="#191c24" stroke="#2a2f3a"/>
+      <text x="74" y="90" font-family="ui-monospace, SFMono-Regular, Menlo, 'DejaVu Sans Mono', monospace" font-size="18" fill="#e8973a">1</text>
+      <text x="74" y="122" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="26" font-weight="600" fill="#f4f2ec">Tokens</text>
+      <text x="74" y="152" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="19" fill="#8b93a1">Read from your own</text><text x="74" y="178" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="19" fill="#8b93a1">session logs</text>
+      <path d="M308 116 l14 0 m-5 -5 l5 5 l-5 5" stroke="#2a2f3a" stroke-width="2" fill="none" stroke-linecap="round"/>
+    </g>
+    <g>
+      <rect x="332" y="52" width="252" height="140" rx="12" fill="#191c24" stroke="#2a2f3a"/>
+      <text x="358" y="90" font-family="ui-monospace, SFMono-Regular, Menlo, 'DejaVu Sans Mono', monospace" font-size="18" fill="#e8973a">2</text>
+      <text x="358" y="122" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="26" font-weight="600" fill="#f4f2ec">Target</text>
+      <text x="358" y="152" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="19" fill="#8b93a1">Your 40th-percentile</text><text x="358" y="178" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="19" fill="#8b93a1">day, tracked live</text>
+      <path d="M592 116 l14 0 m-5 -5 l5 5 l-5 5" stroke="#2a2f3a" stroke-width="2" fill="none" stroke-linecap="round"/>
+    </g>
+    <g>
+      <rect x="616" y="52" width="252" height="140" rx="12" fill="#191c24" stroke="#2a2f3a"/>
+      <text x="642" y="90" font-family="ui-monospace, SFMono-Regular, Menlo, 'DejaVu Sans Mono', monospace" font-size="18" fill="#e8973a">3</text>
+      <text x="642" y="122" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="26" font-weight="600" fill="#f4f2ec">Fill</text>
+      <text x="642" y="152" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="19" fill="#8b93a1">tokens ÷ target,</text><text x="642" y="178" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="19" fill="#8b93a1">subject colours first</text>
+      <path d="M876 116 l14 0 m-5 -5 l5 5 l-5 5" stroke="#2a2f3a" stroke-width="2" fill="none" stroke-linecap="round"/>
+    </g>
+    <g>
+      <rect x="900" y="52" width="252" height="140" rx="12" fill="#191c24" stroke="#2a2f3a"/>
+      <text x="926" y="90" font-family="ui-monospace, SFMono-Regular, Menlo, 'DejaVu Sans Mono', monospace" font-size="18" fill="#e8973a">4</text>
+      <text x="926" y="122" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="26" font-weight="600" fill="#f4f2ec">Tomorrow</text>
+      <text x="926" y="152" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="19" fill="#8b93a1">Beat it and it rises.</text><text x="926" y="178" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="19" fill="#8b93a1">Miss and it eases.</text>
+      
+    </g>
+</svg>

@@ -1,225 +1,158 @@
-# Pigment Wall
+<p align="center">
+  <img src="./assets/readme/hero.svg" width="100%" alt="Pigment Wall — a macOS menu-bar app. The same pixel-art fox shown four times: grey at 0% of the day's target, partly coloured at 45%, fully coloured at 100%, bleached at 260%.">
+</p>
 
-*Pigment for short.*
+Every day you get one grayscale pixel-art picture. It colours in as you burn AI
+tokens, read from your own Claude Code session logs. Yesterday's picture stays
+on the wall, frozen at however filled it got, and so does every day before it.
 
-A macOS menu-bar app. Each day gives you one grayscale pixel-art image. It
-colorizes as you burn AI tokens, read from your local Claude Code session logs.
-Past days stay on a wall, each frozen at however filled it got.
+The difficulty adapts: finish too easily and tomorrow's bar is higher. The
+picture isn't a score, and there are no streaks to protect — it's a record of
+the shape of your month.
 
-> The image is a mirror with a sharp tongue.
+---
 
-The full design is [`docs/SPEC.md`](docs/SPEC.md) — fourteen settled decisions
-with the measurement behind each, and an appendix of what was rejected and why.
-It is the contract; this README only says how to run what exists.
+## The wall
 
-## Status: M2 — it lives
+<p align="center">
+  <img src="./assets/readme/wall.png" width="620" alt="The calendar wall: seven columns for weekdays, one row per week, each cell a small pixel-art picture. Some are fully coloured, some half grey, some entirely grey.">
+</p>
 
-A menu-bar app: a template tray icon that fills as you burn tokens, and a
-popover with today's picture and the wall of days behind it.
+Seven columns, Monday first, newest week on top. Today is outlined. Because
+position encodes the date, a weekly rhythm you'd never notice in a list becomes
+obvious — a column of bright weekends beside a column of pale Tuesdays, and a
+run of grey cells where you took a week off.
 
-M1 built the whole engine headless first — tailing, day bucketing, the
-controller, the seal store, backfill — because `q` and `k` cannot be tuned by
-*using* the app; that is three weeks per experiment. They are tuned by replaying
-sixty days in half a second. That half is still the part with all the decisions
-in it.
+Click the menu-bar icon to open it. The icon itself is today's picture reduced
+to its silhouette, filling as the day goes on, so you can read your progress
+without opening anything.
+
+## How the bar moves
+
+<p align="center">
+  <img src="./assets/readme/loop.svg" width="100%" alt="Four steps: tokens read from session logs, a target at your 40th-percentile day, fill as tokens divided by target, and a target that rises when you beat it and eases when you miss.">
+</p>
+
+Two numbers do all of it, and they do different jobs.
+
+**`q` is the completion rate.** The target settles at your qth-percentile day, so
+you finish `1 − q` of them. It calibrates against *your* history, not a number
+someone else picked.
+
+| `q` | Bar sits at | Days that complete |
+| --- | --- | --- |
+| 0.30 | your 30th-percentile day | ~72% |
+| **0.40** | **your 40th-percentile day** | **~62%** |
+| 0.50 | your median day | ~52% |
+
+**`k` is how fast it reacts.** At `0.15`, smashing the target raises tomorrow's
+bar about 6% and missing it lowers the bar about 9% — a slow tide, not a
+thermostat that flinches every time you have a bad afternoon.
+
+Past 100% the picture keeps going: colours push past natural into bloom, and a
+day at 3× the target is visibly blown out. Overshoot is rendered as damage
+rather than a trophy, on purpose.
+
+Full reasoning, and what was rejected, is in [`docs/SPEC.md`](docs/SPEC.md) —
+fourteen settled decisions, each with the measurement behind it.
+
+## The pictures
+
+<p align="center">
+  <img src="./assets/readme/gallery.svg" width="100%" alt="Thirteen pixel-art drawings — a fox, a lighthouse, a cassette, houses, boats, trees, mountains — at different fill levels from grey to fully coloured.">
+</p>
+
+Colour spreads in an order the drawing carries with it: **subject first,
+background last**, and bottom-up within each colour. At 40% you get a fully
+coloured fox on a grey field, which reads as a finished illustration. The other
+way round reads as broken.
+
+Thirteen drawings so far, across three complexity tiers — a harder day gets a
+busier picture, so the raised bar is visible rather than hidden in a number.
+They're placeholders, and replacing one is a single file.
+
+Bring your own:
 
 ```sh
-npm start         # build and run the app
+npm run import -- my-art.png --tier=3 --id=cassette
 ```
+
+The importer finds the artist's grid rather than downsampling — a 64×64 drawing
+exported at 1216×1216 is recovered as the 64×64 it actually is — then extracts
+the palette and guesses the fill order for you to correct.
+
+## Run it
+
+Requires macOS and Node 24+, and assumes you use Claude Code.
+
+```sh
+npm install
+npm start                 # build and run
+npm run package           # -> out/"Pigment Wall.app"
+```
+
+Launch the packaged app once and approve the notification prompt. macOS grants
+notification rights to bundles, not to a bare `electron .`, so roasts only
+arrive from a packaged build.
+
+## What it reads
+
+Only two fields, from `~/.claude/projects`: the **timestamp** and the **token
+counts** of each assistant response.
+
+It never reads the content of your conversations, file paths, project names or
+branch names — they are in those files, and the parser is built not to take
+them. A test asserts they cannot cross that boundary. Nothing is sent anywhere;
+there is no network code in the app.
+
+Your wall lives in `~/Library/Application Support/pigment-wall/`.
+
+## Settings
+
+The tray menu's **Settings…** opens a commented `config.jsonc`, written on first
+run. Every knob carries the reasoning for its default, because `"q": 0.4` means
+nothing without the sentence explaining that q *is* the completion rate. Edits
+apply within seconds — no restart.
+
+Worth knowing: the day boundary is **04:00, not midnight**, so a session that
+runs past midnight stays one picture. Change it if your hours differ.
+
+## Roasts
+
+Six conditions — an all-time record, an unusually fast hour, a comeback after
+days away, a late session, a dead day, an overshoot. Each has four lines and a
+thirty-day repeat filter.
+
+Only the first four can raise a notification, capped at **one per day**. A dead
+day and an overshoot get a line in the popover but never interrupt: the app
+doesn't scold you for resting, and something that happens on 30% of days isn't a
+surprise. Replayed over a real month that comes to about **1.4 notifications a
+week**. The toggle is the first item in the tray menu.
+
+## Development
 
 ```sh
 npm test          # 97 tests, no test dependencies
 npm run typecheck
 npm run replay    # your real history through the controller, as ASCII
-npm run sweep     # grid over q and k, to check the constants against your data
-npm run package   # -> out/"Pigment Wall.app" (ad-hoc signed; needed for notifications)
-npm run notarize  # Developer ID only: notarize and staple for distribution
-node src/tools/preview.ts --ascii   # look at the pictures at each fill level
+npm run sweep     # grid over q and k, checked against your own data
+node src/tools/preview.ts --ascii    # the pictures at each fill level
 ```
 
-`replay` takes `--days=60 --q=0.4 --k=0.15 --boundary=4`.
+The engine was built headless first and is still where every decision lives:
+`q` and `k` can't be tuned by *using* the app — that's three weeks per
+experiment — so they're tuned by replaying sixty days in half a second.
 
-```
-day            tokens   target  fill  bar                        tier   cost
-2026-05-02     180000   120000  150%  ######################## +  t2   $12.40
-2026-05-03     310000   126000  246%  ######################## +++  t3   $24.80
-2026-05-06      64000   132000   48%  ############············    t2    $5.10
-2026-05-07          —   126000        ························    t2         
+Distribution is `npm run package` (ad-hoc signed, enough to run locally) and
+`npm run notarize` when a Developer ID certificate is present. No packaging
+dependency: it copies Electron.app, drops the bundle in, rewrites six
+Info.plist keys.
 
-completed 17/28 active days (61%) · overexposed >=2x on 6 · tier mix t1:12 t2:14 t3:6
-```
+## Status
 
-*Made-up numbers — the real ones are whatever `npm run replay` prints against
-your own logs.*
+M1–M3 are done; M4 is mostly. Remaining: the full image set, a colour tray icon,
+and Developer ID signing for handing it to someone else. A native Swift/AppKit
+rewrite is parked, not rejected — see [`docs/SPEC.md`](docs/SPEC.md) §13 for the
+measurements and why the cost is the opposite of what you'd guess.
 
-The `+` run past the end of the bar is overshoot — SPEC §7 renders it as bloom
-and bleach rather than discarding it.
-
-`src/core/app.ts` is the seam M2 builds on: `start()` backfills, `tick()` reads
-only what was appended, and both return today's day plus the whole wall. It is
-the only thing the Electron layer should need to call.
-
-## The two knobs: `q` and `k`
-
-The whole adaptive loop is two numbers. Everything else is bookkeeping.
-
-### `q` — how hard the target is
-
-Every day the app picks a number of tokens you need to hit. `q` decides where
-that number sits in your own personal range.
-
-`q = 0.4` means *put the bar at roughly your 40th-percentile day*. 40% of your
-days fall below it, 60% land above — so **60% of your working days finish the
-picture**. That is the entire meaning of `q`.
-
-| `q` | Bar sits at | Days that complete |
-| --- | --- | --- |
-| 0.30 | your 30th-percentile day | 72% |
-| 0.35 | your 35th-percentile day | 66% |
-| **0.40** | **your 40th-percentile day** | **62%** |
-| 0.45 | your 45th-percentile day | 55% |
-| 0.50 | your median day | 52% |
-
-(Measured, not theoretical — `npm run sweep` produced these against real logs.)
-
-`q` *is* the win rate, just written from the other direction.
-
-### `k` — how fast the bar reacts
-
-Each day the bar nudges up or down depending on whether you beat it. `k` is the
-size of that nudge.
-
-At `k = 0.15`:
-
-- you smash the target → tomorrow's bar rises about **6%**
-- you miss it → tomorrow's bar falls about **9%**
-
-Small nudges, so the bar takes weeks to really move. That is deliberate: one
-heroic Tuesday should not make Wednesday punishing, and one bad afternoon should
-not make the app go soft on you. At `k = 0.30` a three-day slump drops the bar
-25% — the app visibly flinching the moment you struggle. At `k = 0.05` it barely
-moves at all.
-
-### Together
-
-`q` says *where* the bar settles. `k` says *how fast it gets there* and how
-twitchy it is on the way. Roughly: `q` is the thermostat's temperature setting,
-`k` is how aggressively the heating responds.
-
-### The trap
-
-`k` has a second job nobody assigned it. The picture's complexity tier is
-decided by comparing today's bar against where the bar has been recently — so if
-`k` is small, the bar never moves far enough from its own trailing average, and
-the tier never changes. **At `k = 0.05` the hardest tier did not appear once in
-60 days.**
-
-So `k` cannot be tuned purely for feel. Smooth the loop too far and a whole
-visible feature quietly stops existing. Run `npm run sweep` and check the `tiers`
-column before changing it.
-
-## Adding pictures
-
-```sh
-node src/tools/import-png.ts my-art.png --tier=3 --id=cassette
-```
-
-Turns a PNG into a drawing. It finds the artist's grid rather than downsampling
-— pixel art exported at 19× is recovered as the 64×64 picture it actually is —
-extracts the palette, and writes `src/art/imported/<id>.ts`. Register it in
-`LIBRARY` and it enters rotation.
-
-It prints the palette it found and guesses two fields you should check by eye:
-`order` (which colour gains colour next — subject first) and `background`
-(what the tray icon leaves out of the silhouette). Re-run with `--order=` and
-`--background=` to correct them.
-
-Which picture a day gets is a **shuffled deck**, not a hash: every picture in a
-tier is dealt once before any repeats, so the same image can never appear two
-days running.
-
-## The pictures are placeholders
-
-`src/art/library.ts` holds thirteen drawings — twelve authored, one imported — each authored as a
-short list of shapes rather than a hand-typed pixel grid — real composition,
-and one drawing renders at 16, 32 or 48px without being redrawn. They are
-scaffolding: good enough to prove the mechanic, not the final art. Replacing one
-means writing a new `Drawing` and nothing else.
-
-Each drawing carries a fill `order` (subject first, background last) and a
-`background` list marking which entries are scenery, which is what gives the
-tray icon a silhouette to fill.
-
-## Roasts
-
-Six conditions — an all-time record, a fast hour, a comeback, a late session, a
-dead day, an overshoot — each with four lines and a thirty-day repeat filter.
-Only the first four may raise a notification, capped at one a day; a dead day
-and an overshoot get a line in the popover but never interrupt, because the app
-does not scold you for resting and a condition that fires on 30% of days is not
-a surprise. Toggle is the first item in the tray menu.
-
-Replayed over the last 34 real days that comes to **1.4 notifications a week**.
-
-**Notifications need a packaged build.** Run via `npm start` they fail with
-`UNErrorDomain error 1` — macOS grants notification rights to bundles, not to a
-bare `electron .`. Run `npm run package` and launch `out/Pigment Wall.app` once to
-approve the permission prompt. Every roast appears in the popover either way.
-
-## Settings
-
-A commented `config.jsonc` is written to
-`~/Library/Application Support/pigment-wall/` on first run — the tray menu's
-**Settings…** opens it. Every knob carries the reasoning for its default, since
-`"q": 0.4` means nothing without the sentence explaining that q *is* the
-completion rate. Edits are picked up within a few seconds; no restart.
-
-The file supports `//` comments, which JSON does not — they are stripped on
-read, string-aware so a path containing `//` survives. Hence `.jsonc` rather
-than `.json`: editors understand that name and validate accordingly, where a
-`.json` file full of comments is flagged as broken on every commented line. A
-`config.json` from an earlier build is still read if present. Every value is clamped
-on load, so a hand-edited `"q": 5` falls back rather than producing a wall that
-can never complete.
-
-First launch also shows a one-panel account of what the app reads
-(`~/.claude/projects`, timestamps and token counts), what it never reads
-(conversation content, paths, project names) and that it sends nothing anywhere.
-Reachable later from **About Pigment Wall…** in the tray menu.
-
-## Distribution
-
-`npm run package` builds `out/Pigment Wall.app` with no packaging dependency — it
-copies Electron.app, drops the bundle in and rewrites six Info.plist keys. It
-signs ad-hoc by default, which is enough to run locally and enough for
-notifications.
-
-If a *Developer ID Application* certificate is in the keychain it signs with
-that instead, adding the hardened runtime and the two entitlements Electron
-needs (JIT and unsigned executable memory — without them a signed build launches
-to a blank window). Then `npm run notarize` zips with `ditto`, submits, waits,
-staples and verifies with `spctl`. Store credentials once:
-
-```sh
-xcrun notarytool store-credentials "pigment" \
-  --apple-id you@example.com --team-id TEAMID --password <app-specific-password>
-```
-
-## What is left
-
-M4: the full image set (13 of ~60), the colour silhouette tray icon, and
-Developer ID signing when the app goes to someone else. Onboarding and the
-config surface are done.
-
-A native Swift/AppKit rewrite is parked, not rejected — see SPEC §13 for the
-measurements and why the cost is inverted from what you would guess.
-
-## Privacy
-
-Pigment opens your transcripts, because token counts live inside them. It reads
-`timestamp` and `usage` from assistant records and nothing else — not `cwd`,
-not `gitBranch`, not a byte of message content — and it never sends anything
-anywhere. `src/core/parse.ts` is where that rule is enforced, and a test asserts
-the fields cannot survive the boundary.
-
-macOS-oriented, but M1 is plain Node and runs anywhere.
+macOS only. ISC licensed.
