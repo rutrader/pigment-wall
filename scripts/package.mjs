@@ -1,4 +1,4 @@
-// Builds out/Pigment.app, with no packaging dependency.
+// Builds out/Pigment Wall.app, with no packaging dependency.
 //
 // electron-builder would be by far the largest thing in this repo, and it earns
 // its keep with auto-update, installers and multi-platform targets — none of
@@ -27,8 +27,8 @@ import { fileURLToPath } from 'node:url'
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 
-const APP_NAME = 'Pigment'
-const BUNDLE_ID = 'com.pigment.app'
+const APP_NAME = 'Pigment Wall'
+const BUNDLE_ID = 'com.pigmentwall.app'
 const out = join(root, 'out')
 const appPath = join(out, `${APP_NAME}.app`)
 const plist = join(appPath, 'Contents', 'Info.plist')

@@ -1,4 +1,6 @@
-# Pigment
+# Pigment Wall
+
+*Pigment for short.*
 
 A macOS menu-bar app. Each day gives you one grayscale pixel-art image. It
 colorizes as you burn AI tokens, read from your local Claude Code session logs.
@@ -30,7 +32,7 @@ npm test          # 97 tests, no test dependencies
 npm run typecheck
 npm run replay    # your real history through the controller, as ASCII
 npm run sweep     # grid over q and k, to check the constants against your data
-npm run package   # -> out/Pigment.app (ad-hoc signed; needed for notifications)
+npm run package   # -> out/"Pigment Wall.app" (ad-hoc signed; needed for notifications)
 npm run notarize  # Developer ID only: notarize and staple for distribution
 node src/tools/preview.ts --ascii   # look at the pictures at each fill level
 ```
@@ -158,13 +160,13 @@ Replayed over the last 34 real days that comes to **1.4 notifications a week**.
 
 **Notifications need a packaged build.** Run via `npm start` they fail with
 `UNErrorDomain error 1` — macOS grants notification rights to bundles, not to a
-bare `electron .`. Run `npm run package` and launch `out/Pigment.app` once to
+bare `electron .`. Run `npm run package` and launch `out/Pigment Wall.app` once to
 approve the permission prompt. Every roast appears in the popover either way.
 
 ## Settings
 
 A commented `config.jsonc` is written to
-`~/Library/Application Support/pigment/` on first run — the tray menu's
+`~/Library/Application Support/pigment-wall/` on first run — the tray menu's
 **Settings…** opens it. Every knob carries the reasoning for its default, since
 `"q": 0.4` means nothing without the sentence explaining that q *is* the
 completion rate. Edits are picked up within a few seconds; no restart.
@@ -180,11 +182,11 @@ can never complete.
 First launch also shows a one-panel account of what the app reads
 (`~/.claude/projects`, timestamps and token counts), what it never reads
 (conversation content, paths, project names) and that it sends nothing anywhere.
-Reachable later from **About Pigment…** in the tray menu.
+Reachable later from **About Pigment Wall…** in the tray menu.
 
 ## Distribution
 
-`npm run package` builds `out/Pigment.app` with no packaging dependency — it
+`npm run package` builds `out/Pigment Wall.app` with no packaging dependency — it
 copies Electron.app, drops the bundle in and rewrites six Info.plist keys. It
 signs ad-hoc by default, which is enough to run locally and enough for
 notifications.

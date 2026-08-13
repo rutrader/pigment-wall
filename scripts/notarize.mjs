@@ -1,4 +1,4 @@
-// Notarizes and staples out/Pigment.app.
+// Notarizes and staples out/Pigment Wall.app.
 //
 // Separate from packaging because it is the only step that needs the network,
 // an Apple ID and a round trip to Apple's servers — usually a minute or two,
@@ -18,8 +18,8 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const appPath = join(root, 'out', 'Pigment.app')
-const zipPath = join(root, 'out', 'Pigment.zip')
+const appPath = join(root, 'out', 'Pigment Wall.app')
+const zipPath = join(root, 'out', 'PigmentWall.zip')
 const profile = process.env.PIGMENT_NOTARY_PROFILE ?? 'pigment'
 
 if (!existsSync(appPath)) {

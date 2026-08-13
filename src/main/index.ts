@@ -111,7 +111,7 @@ app.whenReady().then(async () => {
 
   pigment = new Pigment(CONFIG, STORE)
   tray = new Tray(emptyIcon())
-  tray.setToolTip('Pigment')
+  tray.setToolTip('Pigment Wall')
   tray.on('click', togglePopover)
   tray.on('right-click', showMenu)
 
@@ -187,7 +187,7 @@ function speak(snapshot: Snapshot): void {
 }
 
 function show(text: string): void {
-  const notification = new Notification({ title: 'Pigment', body: text, silent: false })
+  const notification = new Notification({ title: 'Pigment Wall', body: text, silent: false })
 
   // macOS refuses notifications to an app it has not been asked about. Running
   // unpackaged that is always — `npx electron .` is the generic Electron binary,
@@ -294,7 +294,7 @@ function showWelcome(): void {
     resizable: false,
     fullscreenable: false,
     minimizable: false,
-    title: 'Pigment',
+    title: 'Pigment Wall',
     titleBarStyle: 'hiddenInset',
     show: false,
     webPreferences: {
@@ -380,9 +380,9 @@ function showMenu(): void {
         click: (item) => pigment?.setNotify(item.checked),
       },
       { type: 'separator' },
-      { label: 'Open Pigment', click: togglePopover },
+      { label: 'Open Pigment Wall', click: togglePopover },
       { label: 'Settings…', click: () => void shell.openPath(CONFIG_FILE) },
-      { label: 'About Pigment…', click: showWelcome },
+      { label: 'About Pigment Wall…', click: showWelcome },
       { type: 'separator' },
       { label: 'Quit', click: () => app.quit() },
     ]),

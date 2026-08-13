@@ -1,4 +1,6 @@
-# Pigment — Specification
+# Pigment Wall — Specification
+
+*Pigment for short, throughout.*
 
 A macOS menu-bar app. Each day gives you one grayscale pixel-art image. It
 colorizes as you burn AI tokens. Past days stay on a wall, each frozen at
@@ -368,7 +370,7 @@ the escape hatch is obvious the moment it annoys someone.
 **Notifications need a BUNDLE, not a certificate.** Run unpackaged, every send
 fails with `UNErrorDomain error 1`: `npx electron .` is the generic Electron
 binary and macOS will not grant notification rights to something with no bundle
-identity. Packaging fixes it — an **ad-hoc signed** `out/Pigment.app` prompts
+identity. Packaging fixes it — an **ad-hoc signed** `out/Pigment Wall.app` prompts
 for permission and delivers normally. Developer ID signing is required only to
 hand the app to someone else, not to make the roast layer work for yourself.
 This was worth establishing before paying for anything: the two are separable,
