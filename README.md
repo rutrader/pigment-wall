@@ -41,13 +41,16 @@ node src/tools/preview.ts --ascii   # look at the pictures at each fill level
 
 ```
 day            tokens   target  fill  bar                        tier   cost
-2026-08-02     338738    94742  358%  ######################## +++++  t1    $65.84
-2026-08-03     853830   100600  400%  ######################## ++++++  t1   $315.63
-2026-08-06     134552   120441  112%  ########################    t2    $70.06
-2026-08-09      73716   144194   51%  ############············    t3    $21.74
+2026-05-02     180000   120000  150%  ######################## +  t2   $12.40
+2026-05-03     310000   126000  246%  ######################## +++  t3   $24.80
+2026-05-06      64000   132000   48%  ############············    t2    $5.10
+2026-05-07          —   126000        ························    t2         
 
-completed 18/29 active days (62%) · overexposed ≥2× on 10 · tier mix t1:15 t2:11 t3:7
+completed 17/28 active days (61%) · overexposed >=2x on 6 · tier mix t1:12 t2:14 t3:6
 ```
+
+*Made-up numbers — the real ones are whatever `npm run replay` prints against
+your own logs.*
 
 The `+` run past the end of the bar is overshoot — SPEC §7 renders it as bloom
 and bleach rather than discarding it.

@@ -23,22 +23,32 @@ Every number below was derived from a real 33-day sample of
 All design constants trace to these observations. When they stop being true,
 the constants are wrong and this section is where you come back to.
 
+**Measured on one machine over 33 calendar days.** Your numbers will differ, and
+the point is that they should — every threshold here calibrates itself against
+whoever is running it. `npm run sweep` replays your own history against the
+controller; treat the figures below as the shape of one person's month, not as
+targets.
+
+Volumes are given as multiples of **that machine's median active day**, written
+`1.0×`. The absolute size of a day is the least transferable thing here; the
+ratios are what the design actually rests on.
+
 | Observation | Value |
 | --- | --- |
-| Output tokens/day | min 12k · p25 66k · **median 192k** · p75 264k · max 845k |
+| Output tokens/day | p10 0.16× · p25 0.34× · **median 1.0×** · p75 1.38× · max 4.4× |
 | Spread (p90/p10) | **15.5×** for output tokens; 47.7× for raw tokens; 32.4× for cost |
 | Active vs idle days | 29 active, 4 idle across 33 calendar days |
 | Idle days by weekday | **all 4 were Mon–Thu.** Zero idle Fri/Sat/Sun |
-| Heaviest weekdays | Sun 322k · Fri 224k · Sat 192k (medians) |
-| Lightest weekdays | Tue 62k · Thu 99k · Wed 114k |
-| Peak output hour | **23:00** (657k/month), then 22:00 (637k), then 21:00 (556k) |
+| Heaviest weekdays | Sun **1.68×** · Fri 1.17× · Sat 1.00× (medians) |
+| Lightest weekdays | Tue **0.32×** · Thu 0.51× · Wed 0.60× |
+| Peak output hour | **23:00**, then 22:00, then 21:00 |
 | Share in 22:00–02:00 | **27%** |
 | Share in 03:00–07:00 | **0%** — a clean natural seam |
-| Fastest day to median | 1.9h (Aug 3). Days completing within 1h of first activity: **0** |
-| Peak rolling hour | median 73k · max 165k |
-| Estimated cost/day (Opus 5 rates) | p10 $4.49 · **median $38.92** · p90 $145.64 · max $295.14 · 29-day total $1,737 |
-| Full corpus parse | 0.54s |
-| Files touched in last 24h | 13 (26 MB) |
+| Fastest day to median | 1.9h. Days completing within 1h of first activity: **0** |
+| Peak rolling hour | median 0.38× a median day · max 0.86× |
+| Cost per day | tracks raw tokens, not output: 32.4× spread, dominated by cache reads |
+| Full corpus parse | 0.54s over 179 files |
+| Files touched in last 24h | 13 |
 | Files appended >24h after creation | **39 of 179** — resumed sessions are normal |
 
 Two facts do the most work downstream. **Output token rate has a physical
@@ -55,7 +65,7 @@ people who work 09:00–17:00 on weekdays.
 
 The alternative — filling on *restraint*, so the image completes when you stay
 under budget — was rejected because it renders your most productive day as your
-ugliest square. Aug 3 (845k tokens) was real work; an app that paints it as
+ugliest square. the heaviest measured day was real work; an app that paints it as
 failure gets deleted in a week.
 
 But straight burn-as-reward is a slot machine. The mitigation is §3: difficulty
@@ -75,8 +85,8 @@ Output tokens win on every structural axis: the tightest usable dynamic range
 changes, independence from which plan a given user is on, and a physical rate
 ceiling that makes the signal honest by construction.
 
-Raw tokens and cost are both dominated by `cache_read_input_tokens` — one day
-logged 356M cache reads against 845k output. That measures *how large your
+Raw tokens and cost are both dominated by `cache_read_input_tokens` — on the
+heaviest measured day, cache reads outweighed output tokens by roughly 400 to 1. That measures *how large your
 contexts were*, not how much work happened, which is why it blows out to 48×.
 
 Cost is still computed, because it is where the sharp line lives — *"You
@@ -138,8 +148,8 @@ already covered: a fast completion is a high-volume day and the target rises
 accordingly. A separate speed term would be a second controller fighting the
 first for one actuator. Rate is roast material only (§7).
 
-**Validated behaviour.** Replaying real history: the Jul 23–31 slump walked the
-target from 188k down to 89k, so Jul 31 (a weak 70k day) still rendered at 79%.
+**Validated behaviour.** Replaying real history: a nine-day slump walked the
+target down by half, so the weak day that ended it still rendered at 79%.
 Aug 1–8 walked it back up. A bad week does not produce a wall of gray; a good
 week does not produce free wins.
 
@@ -155,11 +165,12 @@ across two images *every night*. 03:00–07:00 is exactly zero in the sample.
 Configurable because the same person runs a company laptop on a different
 rhythm.
 
-**No weekend logic of any kind.** Weekends are the heaviest days here (Sun 322k
-median). Every "rest day" convention is backwards.
+**No weekend logic of any kind.** Weekends are the heaviest days here — Sunday
+runs 1.68× a median day against Tuesday's 0.32×. Every "rest day" convention is
+backwards.
 
-**Idle = under 2,000 output tokens.** The lightest real working day was 11.8k,
-so 2k cleanly separates "worked a little" from "did not work."
+**Idle = under 2,000 output tokens.** The lightest real working day in the
+sample was roughly six times that, so the floor cleanly separates "worked a little" from "did not work."
 
 **An idle day does not update the controller.** Absence is not evidence about
 capacity; it is absence of evidence. The target freezes.
@@ -198,9 +209,9 @@ The baseline is the **median of the last 21 days' targets** — median, not mean
 so one spike week cannot drag it up and quietly re-label a normal day as tier 1.
 
 **Amendment, forced by M1's replay.** The bands were originally absolute token
-counts (<90k, 90k–200k, >200k). Replaying the measured history showed the
-controller's entire operating range was **102k–192k**, so every single day for
-sixty days landed in tier 2 and the tier signal never fired once — the whole
+counts, sized to one machine's volume. Replaying the measured history showed the
+controller's entire operating range was **0.53×–1.0×** of a median day, so every
+single day for sixty days landed in tier 2 and the tier signal never fired once — the whole
 mechanism was dead on arrival. Absolute bands only work if you already know the
 user's scale, which is exactly what the controller exists to learn. Relative
 bands are self-calibrating, work unchanged for a coworker running a tenth of
@@ -298,8 +309,8 @@ over squares one at a time, because the only dates were in tooltips.
 
 Weekday alignment costs tile size — seven columns in a 420px popover means ~48px
 per day instead of ~96 — and buys the thing §0 measured and the old layout hid:
-**a weekly rhythm**. Sundays are this user's heaviest day (322k median) and
-Tuesdays their lightest (62k); every idle day in the sample fell Mon–Thu. In a
+**a weekly rhythm**. Sunday is the heaviest day here at 1.68× a median day and
+Tuesday the lightest at 0.32×; every idle day in the sample fell Mon–Thu. In a
 column layout that is a bright column and a pale one. In a flow layout it is
 invisible.
 
@@ -312,7 +323,7 @@ it is the one place tile size still matters.
 
 **Past 100%, the image overexposes. One continuous curve, capped at 4×.**
 
-Aug 3 hit **8.7× target**. Under a cap-at-full rule it renders identically to a
+The heaviest measured day hit **8.7× target**. Under a cap-at-full rule it renders identically to a
 1.02× day — the most extreme day of the month, indistinguishable from a mild
 one. Saturation and bloom climb past natural; at the extreme the image is
 blown out, white-hot, too much.
@@ -630,7 +641,7 @@ the app has failed and this section is the one it failed.
 | **Cost or raw tokens as the fill metric** | 30–48× spread, dominated by cache reads. Measures context size, not effort. Also depends on a pricing table and a subscription plan. |
 | **A trailing-window average as the controller** | Requires storing history and picking a window length. The quantile tracker is one float and its window *is* `k`. |
 | **Speed as a second controller input** | Two controllers fighting for one actuator. Volume already encodes speed. |
-| **"Completed within 1 hour" as the roast trigger** | Has happened 0 times in 29 days. Physically unreachable — peak rolling hour is 165k. |
+| **"Completed within 1 hour" as the roast trigger** | Has happened 0 times in 29 days. Physically unreachable — the best hour ever recorded was 0.86× a median day. |
 | **Trophy tiers (bronze/silver/gold) for overshoot** | A reward for burning. Pulls the app back toward a slot machine and cannot coexist with a sharp tone. |
 | **Banking overflow into tomorrow** | A rest day after a big day fills itself, and the wall stops being a record of days. |
 | **Skipping idle days on the wall** | Three months would look like an unbroken streak. The wall would lie. |
