@@ -72,23 +72,31 @@ Thirteen drawings so far, across three complexity tiers — a harder day gets a
 busier picture, so the raised bar is visible rather than hidden in a number.
 They're placeholders, and replacing one is a single file.
 
-Bring your own — one image, or a whole sprite sheet:
+Bring your own — one image, a folder of sprites, or a sprite sheet:
 
 ```sh
 npm run import -- my-art.png --tier=3 --id=cassette
-npm run import -- kenney-pack.png --sheet=8x5 --tier=2 --prefix=kenney
+npm run import -- ./pack/Tiles/ --tier=2 --prefix=dungeon
+npm run import -- ./pack/sheet.png --sheet=8x5 --tier=2 --prefix=dungeon
 ```
 
 The importer finds the artist's grid rather than downsampling — a 64×64 drawing
 exported at 1216×1216 is recovered as the 64×64 it actually is — then extracts
 the palette and guesses the fill order for you to correct.
 
-Sheet mode slices a grid into one drawing per cell, skips the empty ones, and
-trims each sprite to its bounds before padding it back to a square. That makes
-the CC0 asset packs usable directly: [Kenney](https://kenney.nl) is the obvious
-one, and [OpenGameArt](https://opengameart.org) or
-[itch.io](https://itch.io/game-assets/assets-cc0/tag-pixel-art) if you filter to
-CC0.
+Sheet mode slices a grid into one drawing per cell and skips empty ones; folder
+mode takes every PNG in a directory. Both trim each sprite to its bounds and pad
+it back to a square.
+
+That makes CC0 asset packs usable directly — but **only the pixel-art ones**.
+[Kenney](https://kenney.nl) ships both kinds, and the smooth cartoon packs
+(Monster Builder and friends) are anti-aliased vector art that turns to mush at
+tile size. The importer refuses them and says why. Good starting points:
+[Tiny Dungeon](https://kenney.nl/assets/tiny-dungeon) (130+ sprites, colour,
+CC0), or [OpenGameArt](https://opengameart.org) and
+[itch.io](https://itch.io/game-assets/assets-cc0/tag-pixel-art) filtered to CC0.
+Kenney's [1-Bit Pack](https://kenney.nl/assets/1-bit-pack) is tempting and wrong
+— it is monochrome, and this is an app about colour arriving.
 
 Sprites suit this better than the scenes shipped here, incidentally: they arrive
 on transparency, which is already how the art layer says *outside the picture*.
@@ -146,7 +154,7 @@ week**. The toggle is the first item in the tray menu.
 ## Development
 
 ```sh
-npm test          # 107 tests, no test dependencies
+npm test          # 111 tests, no test dependencies
 npm run typecheck
 npm run replay    # your real history through the controller, as ASCII
 npm run sweep     # grid over q and k, checked against your own data

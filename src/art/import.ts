@@ -26,22 +26,89 @@ export type Imported = {
 /** Above this a "palette" is really a gradient, and the art is not pixel art. */
 const MAX_COLOURS = 64
 
-export function importPng(buffer: Buffer, options: { maxSize?: number } = {}): Imported {
+export function importPng(
+  buffer: Buffer,
+  options: { maxSize?: number; trim?: boolean } = {},
+): Imported {
   const png = decodePng(buffer)
-  if (png.width !== png.height) {
-    throw new Error(`image must be square (got ${png.width}×${png.height})`)
+  if (!options.trim && png.width !== png.height) {
+    throw new Error(`image must be square (got ${png.width}×${png.height}) — pass trim to crop it`)
   }
 
   const block = detectBlock(png, options.maxSize ?? 128)
-  const size = png.width / block
-
-  const imported = collect(png, block, { x: 0, y: 0, w: size, h: size })
-  // Untrimmed reads never return null; a fully transparent single image is the
-  // caller's mistake and deserves saying so rather than a confusing empty
-  // drawing later.
+  const imported = collect(
+    png,
+    block,
+    { x: 0, y: 0, w: png.width / block, h: png.height / block },
+    options.trim,
+  )
+  // A trimmed read returns null for an entirely transparent image; an untrimmed
+  // one never does. Either way it is the caller's mistake and deserves saying
+  // so, rather than a confusing empty drawing later.
   if (!imported) throw new Error('image is entirely transparent')
+
+  assertHardEdges(png)
+  assertPixelArt(imported)
   return imported
 }
+
+/**
+ * Rejects anti-aliased art, which is the reliable tell.
+ *
+ * Size alone is not enough: a 42x42 cartoon sprite passes any grid check while
+ * still being smooth art that turns to mush at tile size. Real pixel art has
+ * 1-bit alpha — every pixel is fully opaque or fully absent — because the
+ * artist placed each one. Anything that fades at the edges was drawn with a
+ * brush or exported from vector, and the soft border is exactly what a 46px
+ * tile and a 16pt icon cannot carry.
+ */
+function assertHardEdges(png: { width: number; height: number; data: Uint8Array }): void {
+  let opaque = 0
+  let soft = 0
+  for (let i = 0; i < png.width * png.height; i++) {
+    const alpha = png.data[i * 4 + 3]!
+    if (alpha === 0) continue
+    opaque++
+    if (alpha < 250) soft++
+  }
+
+  if (opaque === 0) return
+  const ratio = soft / opaque
+  if (ratio > SOFT_EDGE_LIMIT) {
+    throw new Error(
+      `${(ratio * 100).toFixed(0)}% of its pixels are partly transparent — this is anti-aliased ` +
+        `art, not pixel art. Pixel art has hard edges: every pixel is either there or it is not.`,
+    )
+  }
+}
+
+/** Above this share of soft pixels, the art was not placed pixel by pixel. */
+const SOFT_EDGE_LIMIT = 0.02
+
+/**
+ * Rejects smooth art dressed up as pixel art.
+ *
+ * Not every free asset pack is pixel art, and the failure is silent rather than
+ * loud: a 165x165 vector-style cartoon has no upscale factor to recover, so it
+ * imports as a 165x165 "grid" and then gets squeezed into a 46px tile and a
+ * 16pt tray icon. The result is mush, and nothing along the way complains.
+ *
+ * The tell is an image with no upscale factor and a grid far larger than any
+ * tier uses. Genuinely native pixel art — a real 32x32 file — also has no
+ * upscale, which is why the threshold sits well above the largest canvas.
+ */
+function assertPixelArt(imported: Imported): void {
+  if (imported.block === 1 && imported.size > NATIVE_LIMIT) {
+    throw new Error(
+      `no upscale factor found and the grid is ${imported.size}×${imported.size} — this looks ` +
+        `like smooth art rather than pixel art. Pixel art is either small (up to about ` +
+        `${NATIVE_LIMIT}px) or exported at a whole-number zoom.`,
+    )
+  }
+}
+
+/** Above this, an un-upscaled image is not plausibly a hand-placed pixel grid. */
+const NATIVE_LIMIT = 96
 
 /** One sprite lifted out of a sheet, with the cell it came from. */
 export type Sliced = {

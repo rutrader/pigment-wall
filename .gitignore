@@ -3,3 +3,6 @@ dist/
 out/
 *.log
 .DS_Store
+
+# Downloaded asset packs: keep the drawings you import, not the source packs.
+kenney_*/

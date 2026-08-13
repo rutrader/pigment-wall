@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { guessOrder, importPng, importSheet, type Imported } from '../art/import.ts'
 
@@ -10,6 +10,11 @@ import { guessOrder, importPng, importSheet, type Imported } from '../art/import
  *
  *   node src/tools/import-png.ts sheet.png --sheet=8x5 --tier=2 [--prefix=kenney]
  *                                [--min=12]
+ *
+ *   node src/tools/import-png.ts ./pack/Tiles/ --tier=2 [--prefix=dungeon] [--min=12]
+ *
+ * A directory imports every PNG inside it — asset packs usually ship separate
+ * sprites as well as a sheet, and separate files come with names worth keeping.
  *
  * Prints the palette it found — index, swatch, share of the picture, and whether
  * it touches the border — then writes `src/art/imported/<id>.ts`. Two fields are
@@ -44,7 +49,16 @@ const outDir = join('src', 'art', 'imported')
 mkdirSync(outDir, { recursive: true })
 
 if (args.has('sheet')) importSheetFile()
+else if (isDirectory(file!)) importFolder()
 else importSingle()
+
+function isDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory()
+  } catch {
+    return false
+  }
+}
 
 // --- single image --------------------------------------------------------------
 
@@ -111,6 +125,62 @@ function importSheetFile(): void {
   console.log(`\n  wrote ${written} drawings to ${outDir}/`)
   console.log('  next: import the ones you want in src/art/library.ts and add them to LIBRARY,')
   console.log('        then `node src/tools/preview.ts --ascii` to see them fill.\n')
+}
+
+// --- a folder of separate sprites ----------------------------------------------
+
+function importFolder(): void {
+  const prefix = args.get('prefix') ?? slug(basename(file!))
+  const min = Number(args.get('min') ?? 12)
+
+  const files = readdirSync(file!)
+    .filter((name) => name.toLowerCase().endsWith('.png'))
+    .sort()
+
+  if (files.length === 0) {
+    console.error(`no PNGs in ${file}. Asset packs often nest them — try a subfolder.`)
+    process.exit(1)
+  }
+
+  console.log(`\n${file}`)
+  console.log(`  ${files.length} PNGs\n`)
+  console.log('  id                       grid  colours  pixels')
+
+  let written = 0
+  let refused = 0
+
+  for (const name of files) {
+    const id = `${prefix}-${slug(name)}`
+    let imported
+
+    try {
+      // Trimmed, because separate sprites are rarely square and usually sit in
+      // a padded canvas.
+      imported = importPng(readFileSync(join(file!, name)), { trim: true })
+    } catch (error) {
+      refused++
+      if (refused <= 3) console.log(`  ${id.padEnd(24)} ${String((error as Error).message).slice(0, 60)}`)
+      continue
+    }
+
+    const opaque = imported.counts.reduce((a, b) => a + b, 0)
+    if (opaque < min) continue
+
+    write(id, imported, guessOrder(imported), [], name)
+    written++
+    console.log(
+      `  ${id.padEnd(24)} ${`${imported.size}²`.padStart(5)}  ` +
+        `${String(imported.palette.length).padStart(7)}  ${String(opaque).padStart(6)}`,
+    )
+  }
+
+  if (refused > 3) console.log(`  … and ${refused - 3} more refused`)
+  console.log(`\n  wrote ${written} drawings to ${outDir}/`)
+  if (refused > 0) {
+    console.log(`  ${refused} refused — usually means the pack is not pixel art.`)
+    console.log('  Kenney ships both kinds; look for the ones tagged pixel art, e.g. Tiny Dungeon.')
+  }
+  console.log('  next: import the ones you want in src/art/library.ts and add them to LIBRARY.\n')
 }
 
 // --- shared --------------------------------------------------------------------

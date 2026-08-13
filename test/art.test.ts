@@ -433,3 +433,66 @@ test('a grid that does not divide the sheet is refused, not silently mangled', a
     /does not divide this sheet evenly/,
   )
 })
+
+
+// --- refusing art that is not pixel art -----------------------------------------
+
+test('anti-aliased art is refused, however small it is', async () => {
+  const { encodePng } = await import('../src/main/png.ts')
+  const { importPng } = await import('../src/art/import.ts')
+
+  // A 40px disc with a soft edge — exactly the shape of a cartoon asset pack.
+  // Small enough to pass any size check, so the edge is the only tell.
+  const soft = encodePng(40, (x, y) => {
+    const d = Math.hypot(x - 20, y - 20)
+    if (d > 18) return { r: 0, g: 0, b: 0, a: 0 }
+    const alpha = d > 16 ? Math.round(255 * (18 - d) / 2) : 255
+    return { r: 200, g: 80, b: 60, a: alpha }
+  })
+
+  assert.throws(() => importPng(soft, { trim: true }), /anti-aliased art, not pixel art/)
+})
+
+test('hard-edged art of the same shape is accepted', async () => {
+  const { encodePng } = await import('../src/main/png.ts')
+  const { importPng } = await import('../src/art/import.ts')
+
+  const hard = encodePng(40, (x, y) =>
+    Math.hypot(x - 20, y - 20) <= 18 ? { r: 200, g: 80, b: 60, a: 255 } : { r: 0, g: 0, b: 0, a: 0 },
+  )
+
+  const imported = importPng(hard, { trim: true })
+  assert.ok(imported.size > 30 && imported.size <= 40)
+  assert.equal(imported.palette.length, 1)
+})
+
+test('smooth art with no upscale is refused on its grid size alone', async () => {
+  const { encodePng } = await import('../src/main/png.ts')
+  const { importPng } = await import('../src/art/import.ts')
+
+  // Hard-edged, so the edge test passes — but 160px of hand-placed pixels is
+  // not a thing, and squeezing it into a 46px tile would be mush.
+  const big = encodePng(160, (x, y) => ({
+    r: 40 + ((x * 3) % 60),
+    g: 90,
+    b: 120,
+    a: 255,
+  }))
+
+  assert.throws(() => importPng(big), /looks like smooth art rather than pixel art/)
+})
+
+test('native pixel art at a normal size is not caught by that guard', async () => {
+  const { encodePng } = await import('../src/main/png.ts')
+  const { importPng } = await import('../src/art/import.ts')
+
+  // A real 32x32 file saved at 1x has no upscale factor either — the guard must
+  // not mistake it for smooth art.
+  const native = encodePng(32, (x, y) =>
+    (x + y) % 2 === 0 ? { r: 20, g: 160, b: 90, a: 255 } : { r: 240, g: 240, b: 220, a: 255 },
+  )
+
+  const imported = importPng(native)
+  assert.equal(imported.size, 32)
+  assert.equal(imported.block, 1)
+})

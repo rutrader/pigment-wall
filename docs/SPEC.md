@@ -271,7 +271,16 @@ and there is no generated-art tell at 32px. `npm run import -- sheet.png
 Sprites also fit the format better than the scenes this shipped with. They come
 on transparency, which the art layer already reads as *outside the picture*, so
 the tray silhouette is correct with no work and the `background` field — the one
-genuinely fiddly authoring decision — is simply empty. Runtime stays fully local. Evaluated
+genuinely fiddly authoring decision — is simply empty.
+
+**But only the pixel-art packs.** Asset sites ship far more smooth vector-style
+cartoon art than pixel art, and the failure is silent: a 42×42 anti-aliased
+sprite passes every size check, imports happily, and turns to mush in a 46px
+tile and a 16pt icon. The importer refuses it on the reliable tell — real pixel
+art has **1-bit alpha**, every pixel either placed or absent, so more than 2%
+partly-transparent pixels means a brush or a vector export. A second guard
+rejects an un-upscaled grid larger than 96px, since nobody hand-places that many
+pixels. Kenney's Monster Builder pack fails both; Tiny Dungeon passes. Runtime stays fully local. Evaluated
 `Synero/pixel-art-studio` and deferred it — it downscales-and-quantizes rather
 than composing, produces no alpha, no indexed output, and no fill ordering, and
 its generated images carry Pollinations' terms rather than the repo's.
